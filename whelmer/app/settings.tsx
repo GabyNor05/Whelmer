@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,17 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
-// Actionable ADHD productivity tips tailored to Whelmer features
+// Keys for persistence
+const STORAGE_KEYS = {
+  USER: '@whelmer_user_data',
+  SETTINGS: '@whelmer_app_settings',
+};
+
+// Help Center Items
 const HELP_TIPS = [
   {
     id: '1',
@@ -47,7 +56,7 @@ const HELP_TIPS = [
   },
 ];
 
-// Privacy & Security details
+// Privacy Items
 const PRIVACY_ITEMS = [
   {
     id: '1',
@@ -90,54 +99,161 @@ export default function SettingsScreen() {
     avatarUrl: 'https://i.pravatar.cc/150?img=12',
   });
 
-  // Settings State
+  // Settings Toggles
   const [pushNotifications, setPushNotifications] = useState(true);
   const [focusAudioAutoplay, setFocusAudioAutoplay] = useState(false);
   const [hapticFeedback, setHapticFeedback] = useState(true);
 
-  // Modal States
+  // Modal Visibility States
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isHelpModalVisible, setIsHelpModalVisible] = useState(false);
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
 
-  const [editName, setEditName] = useState(user.name);
-  const [editEmail, setEditEmail] = useState(user.email);
+  // Edit Form Fields
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
 
-  // Profile Save Handler
-  const handleSaveProfile = () => {
+  // 1. Load Saved Preferences & User Profile on Mount
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const savedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+
+      const savedSettings = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        setPushNotifications(parsed.pushNotifications ?? true);
+        setFocusAudioAutoplay(parsed.focusAudioAutoplay ?? false);
+        setHapticFeedback(parsed.hapticFeedback ?? true);
+      }
+    } catch (e) {
+      console.error('Failed to load settings from storage:', e);
+    }
+  };
+
+  // 2. Persist Settings Changes Automatically
+  const saveSettingToggle = async (key: string, value: boolean) => {
+    try {
+      const current = {
+        pushNotifications,
+        focusAudioAutoplay,
+        hapticFeedback,
+        [key]: value,
+      };
+      await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(current));
+    } catch (e) {
+      console.error('Failed to save setting:', e);
+    }
+  };
+
+  const handleToggleNotifications = (val: boolean) => {
+    setPushNotifications(val);
+    saveSettingToggle('pushNotifications', val);
+  };
+
+  const handleToggleAutoplay = (val: boolean) => {
+    setFocusAudioAutoplay(val);
+    saveSettingToggle('focusAudioAutoplay', val);
+  };
+
+  const handleToggleHaptics = (val: boolean) => {
+    setHapticFeedback(val);
+    saveSettingToggle('hapticFeedback', val);
+  };
+
+  // 3. Save Updated Profile to Storage
+  const handleSaveProfile = async () => {
     if (!editName.trim()) {
       Alert.alert('Error', 'Name cannot be empty.');
       return;
     }
-    setUser((prev) => ({
-      ...prev,
+    const updatedUser = {
+      ...user,
       name: editName.trim(),
       email: editEmail.trim(),
-    }));
-    setIsEditModalVisible(false);
+    };
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setIsEditModalVisible(false);
+    } catch (e) {
+      Alert.alert('Error', 'Could not save profile changes.');
+    }
   };
 
-  // Data Export Handler
-  const handleExportData = () => {
-    Alert.alert(
-      'Export Complete',
-      'A backup file containing your tasks and focus timer settings has been prepared for download.'
-    );
+  // 4. Export JSON Data (Write JSON file & Trigger Native Share)
+  const handleExportData = async () => {
+    try {
+      // Gather current app state / storage payload
+      const exportPayload = {
+        app: 'Whelmer',
+        version: '1.0.0',
+        exportedAt: new Date().toISOString(),
+        user,
+        settings: {
+          pushNotifications,
+          focusAudioAutoplay,
+          hapticFeedback,
+        },
+      };
+
+      const jsonString = JSON.stringify(exportPayload, null, 2);
+      const filePath = `${FileSystem.documentDirectory}whelmer_backup.json`;
+
+      // Write file to device storage
+      await FileSystem.writeAsStringAsync(filePath, jsonString, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: 'application/json',
+          dialogTitle: 'Export Whelmer Backup Data',
+          UTI: 'public.json',
+        });
+      } else {
+        Alert.alert('Export Ready', `Backup file saved to: ${filePath}`);
+      }
+    } catch (error) {
+      console.error('JSON Export Error:', error);
+      Alert.alert('Export Failed', 'Could not generate backup file.');
+    }
   };
 
-  // Clear Local Data Handler
+  // 5. Reset Storage Data
   const handleClearData = () => {
     Alert.alert(
       'Clear All Local Data?',
-      'This will erase all local tasks and focus stats from this device. This action cannot be undone.',
+      'This will erase all local tasks, preferences, and cached profile data from this device.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Erase Everything',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Data Cleared', 'Your local database has been reset.');
-            setIsPrivacyModalVisible(false);
+          onPress: async () => {
+            try {
+              await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.SETTINGS]);
+              setUser({
+                name: 'Alex Johnson',
+                email: 'alex.johnson@example.com',
+                avatarUrl: 'https://i.pravatar.cc/150?img=12',
+              });
+              setPushNotifications(true);
+              setFocusAudioAutoplay(false);
+              setHapticFeedback(true);
+              setIsPrivacyModalVisible(false);
+              Alert.alert('Reset Complete', 'Local application storage has been cleared.');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to clear local data.');
+            }
           },
         },
       ]
@@ -203,7 +319,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={pushNotifications}
-              onValueChange={setPushNotifications}
+              onValueChange={handleToggleNotifications}
               trackColor={{ false: '#E0E0E0', true: '#7EC2C6' }}
               thumbColor="#FFFFFF"
             />
@@ -219,7 +335,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={focusAudioAutoplay}
-              onValueChange={setFocusAudioAutoplay}
+              onValueChange={handleToggleAutoplay}
               trackColor={{ false: '#E0E0E0', true: '#7EC2C6' }}
               thumbColor="#FFFFFF"
             />
@@ -235,7 +351,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={hapticFeedback}
-              onValueChange={setHapticFeedback}
+              onValueChange={handleToggleHaptics}
               trackColor={{ false: '#E0E0E0', true: '#7EC2C6' }}
               thumbColor="#FFFFFF"
             />
@@ -324,7 +440,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* In-App Help & Tips Modal Sheet */}
+      {/* Help Modal Sheet */}
       <Modal visible={isHelpModalVisible} animationType="slide" transparent>
         <View style={styles.sheetModalOverlay}>
           <View style={styles.sheetModalContent}>
@@ -358,7 +474,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Privacy & Security Modal Sheet */}
+      {/* Privacy Modal Sheet */}
       <Modal visible={isPrivacyModalVisible} animationType="slide" transparent>
         <View style={styles.sheetModalOverlay}>
           <View style={styles.sheetModalContent}>
@@ -388,7 +504,7 @@ export default function SettingsScreen() {
                 </View>
               ))}
 
-              {/* Data Action Buttons */}
+              {/* Data Export & Reset Actions */}
               <View style={styles.privacyActionRow}>
                 <TouchableOpacity style={styles.exportBtn} onPress={handleExportData}>
                   <Ionicons name="download-outline" size={16} color="#3B6B6E" />
@@ -520,7 +636,7 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, fontWeight: '700', color: '#E65C5C' },
   versionText: { textAlign: 'center', fontSize: 12, color: '#999999', marginTop: 20 },
 
-  // Edit Profile Center Modal
+  // Edit Profile Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -551,7 +667,7 @@ const styles = StyleSheet.create({
   },
   modalSaveText: { fontSize: 14, fontWeight: '700', color: '#1B3C3E' },
 
-  // Bottom Sheet Modals (Help & Privacy)
+  // Bottom Sheets
   sheetModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
