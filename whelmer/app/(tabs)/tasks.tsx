@@ -10,12 +10,14 @@ import {
   Platform,
   UIManager,
   Animated,
+  Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { globalTasks, TaskItem, parseAndSaveMiloTasks } from '../../src/services/taskService';
+const milo = require('../../assets/milo/Milo-Excited.png');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -227,7 +229,7 @@ export default function TasksScreen() {
               style={styles.aiBreakdownBtn}
               onPress={() => router.push('/(tabs)/milo')}
             >
-              <Ionicons name="sparkles" size={16} color="#3B4D21" />
+              <Image source={milo} style={{ height:15, width: 11, borderRadius: 100 }} />
               <Text style={styles.aiBreakdownText}>Ask Milo</Text>
             </TouchableOpacity>
           </View>

@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,8 @@ import {
 } from 'firebase/auth';
 import { auth } from '../src/services/firebase';
 import { createUserProfile } from '../src/services/userService';
+const milo = require('../assets/milo/milo_smiling.png');
+const appName = require('../assets/milo/Whelmer.png');
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -110,9 +113,9 @@ const handleAuth = async () => {
         {/* Brand Mascot & Welcome Banner */}
         <View style={styles.brandHeader}>
           <View style={styles.mascotBadge}>
-            <Ionicons name="sparkles" size={28} color="#3B4D21" />
+            <Image source={milo} style={{ resizeMode: 'contain', height: 50}} />
           </View>
-          <Text style={styles.brandTitle}>Whelmer</Text>
+          <Image source={appName} style={{ resizeMode: 'contain', height: 50, marginBottom: 30, marginTop: -10}} />
           <Text style={styles.brandSubtitle}>
             {isSignUp
               ? 'Create an account to start overwhelming overwhelm.'
@@ -222,9 +225,9 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   mascotBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 80,
+    height: 80,
+    borderRadius: "100%",
     backgroundColor: '#D6E2A3',
     alignItems: 'center',
     justifyContent: 'center',
@@ -235,6 +238,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1B3C3E',
     letterSpacing: 0.5,
+    fontFamily: "Rancho" ,
+    direction: "ltr"
   },
   brandSubtitle: {
     fontSize: 14,

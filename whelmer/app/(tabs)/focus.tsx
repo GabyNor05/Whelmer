@@ -8,11 +8,13 @@ import {
   Easing,
   Modal,
   FlatList,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
 import { TRACK_LIST, SoundTrack } from "../../src/services/trackService";
+const milo = require('../../assets/milo/Milo-Pleased.png');
 
 export default function FocusScreen() {
   const insets = useSafeAreaInsets();
@@ -142,8 +144,9 @@ export default function FocusScreen() {
             <View style={styles.recordGrooveLine} />
             <View style={styles.recordGrooveLineInner} />
             <View style={styles.recordCenterLabel}>
-              <Ionicons name="sparkles" size={16} color="#3B4D21" />
-              <Text style={styles.recordLabelText}>MILO</Text>
+              
+              <Image source={milo} style={styles.recordLabelImage} />
+              <Text style={styles.recordLabelText}>Milo's Mix</Text>
             </View>
             <View style={styles.centerSpindlePin} />
           </Animated.View>
@@ -342,6 +345,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#D6E2A3",
     alignItems: "center",
     justifyContent: "center",
+  },
+  recordLabelImage:{
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
+    borderRadius: 100,
   },
   recordLabelText: {
     fontSize: 9,

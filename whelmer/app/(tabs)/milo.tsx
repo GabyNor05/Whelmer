@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Share,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { askMilo } from '../../src/services/ai';
 import { parseAndSaveMiloTasks } from '../../src/services/taskService';
+const milo = require('../../assets/milo/chatAvatar.png');
 
 interface Message {
   id: string;
@@ -129,7 +131,7 @@ export default function MiloChatScreen() {
       <View style={[styles.messageRow, isMilo ? styles.miloRow : styles.userRow]}>
         {isMilo && (
           <View style={styles.avatarCircle}>
-            <Ionicons name="sparkles" size={16} color={Colors.textDark} />
+            <Image source={milo} style={{ width: 28, height: 28, borderRadius: 100 }} />
           </View>
         )}
         <View style={[styles.bubble, isMilo ? styles.miloBubble : styles.userBubble]}>
@@ -180,7 +182,7 @@ export default function MiloChatScreen() {
       <View style={styles.header}>
         <View style={styles.headerTitleContainer}>
           <View style={styles.headerAvatar}>
-            <Ionicons name="sparkles" size={20} color={Colors.textDark} />
+            <Image source={milo} style={{ width: 40, height: 40, borderRadius: 100 }} />
           </View>
           <View>
             <Text style={styles.headerTitle}>Milo</Text>

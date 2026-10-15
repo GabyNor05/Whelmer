@@ -5,13 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { globalTasks, TaskItem } from '../../src/services/taskService';
-
+const milo = require('../../assets/milo/Milo-Inquisitive.png');
 
 export default function HomeScreen() {
 
@@ -70,7 +71,8 @@ export default function HomeScreen() {
         {/* 2. Milo Check-In Card */}
         <View style={styles.checkInCard}>
           <View style={styles.mascotSquare}>
-            <Ionicons name="sparkles" size={32} color="#B0B0B0" />
+            <Image source={milo} style={{resizeMode: 'contain', width: 66, height: 60, transform: [{ rotate: '8.78deg' }] }} />
+            
           </View>
           <View style={styles.checkInRight}>
             <Text style={styles.checkInQuote}>
@@ -225,21 +227,22 @@ const styles = StyleSheet.create({
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },
   mascotSquare: {
-    width: 72,
-    height: 72,
+    
     borderRadius: 14,
-    backgroundColor: '#F2F2F2',
+    
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
   },
   checkInRight: {
     flex: 1,
+    alignItems: 'flex-end',
   },
   checkInQuote: {
     fontSize: 14,
