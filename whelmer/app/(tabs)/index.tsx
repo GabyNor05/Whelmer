@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { globalTasks, TaskItem } from '../../src/services/taskService';
 
 
 export default function HomeScreen() {
+
   const insets = useSafeAreaInsets();
   const router = useRouter();
 

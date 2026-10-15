@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { requestNotificationPermission } from '../src/services/notificationService';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
@@ -267,7 +268,7 @@ export default function SettingsScreen() {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => router.replace('/'),
+        onPress: () => router.replace('/login'),
       },
     ]);
   };
