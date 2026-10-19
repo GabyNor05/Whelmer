@@ -1,40 +1,40 @@
-import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+// app/_layout.tsx
+import { useEffect } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { Asset } from 'expo-asset';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
-  const { isLoading } = useAuth();
-  const [assetsReady, setAssetsReady] = useState(false);
+  const { user, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        // Preload splash image
-        await Asset.loadAsync(require('../assets/splash-icon.png'));
-      } catch (e) {
-        console.warn('Asset loading error:', e);
-      } finally {
-        setAssetsReady(true);
-      }
-    }
-    prepare();
-  }, []);
+    if (isLoading) return;
 
-  useEffect(() => {
-    if (!isLoading && assetsReady) {
-      SplashScreen.hideAsync();
+    // Hide splash screen once auth state is resolved
+    SplashScreen.hideAsync().catch(() => {});
+
+    // Check current active segment route safely
+    const currentSegment = segments[0] as string | undefined;
+    const inAuthGroup = currentSegment === '(tabs)';
+
+    if (!user && inAuthGroup) {
+      // User is logged out but on protected main tabs -> redirect to login
+      router.replace('/login');
+    } else if (user && (currentSegment === 'login' || !currentSegment)) {
+      // User is logged in and sitting on login or index root -> redirect to main app
+      router.replace('/(tabs)');
     }
-  }, [isLoading, assetsReady]);
+  }, [user, isLoading, segments]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" />
       <Stack.Screen name="onboarding" />
-      <Stack.Screen name="(tabs)" />
       <Stack.Screen name="settings" />
     </Stack>
   );
