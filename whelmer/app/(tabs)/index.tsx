@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,10 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect, Redirect } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
-import { globalTasks, TaskItem } from '../../src/services/taskService';
+import { useTasks } from '../../src/hooks/useTasks';
 const milo = require('../../assets/milo/Milo-Inquisitive.png');
 
 export default function HomeScreen() {
@@ -20,25 +20,15 @@ export default function HomeScreen() {
   const router = useRouter();
 
   // Task & Timer State
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const { tasks, toggleTaskCompleted } = useTasks();
   const [timerMinutes, setTimerMinutes] = useState(25);
   const [selectedTrack, setSelectedTrack] = useState('Lofi Track 1');
-
-  useFocusEffect(
-    useCallback(() => {
-      setTasks([...globalTasks]);
-    }, [])
-  );
 
   const pendingTasks = tasks.filter((t) => !t.completed);
 
   const toggleTask = (id: string) => {
-    const updated = tasks.map((t) =>
-      t.id === id ? { ...t, completed: !t.completed } : t
-    );
-    setTasks(updated);
-    const target = globalTasks.find((t) => t.id === id);
-    if (target) target.completed = !target.completed;
+    const target = tasks.find((t) => t.id === id);
+    if (target) toggleTaskCompleted(target);
   };
 
   const adjustTimer = (delta: number) => {

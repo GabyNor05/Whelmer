@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, useEffect, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,11 @@ import {
   Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { globalTasks, TaskItem, parseAndSaveMiloTasks } from '../../src/services/taskService';
+import type { TaskItem } from '../../src/services/taskService';
+import { useTasks } from '../../src/hooks/useTasks';
 const milo = require('../../assets/milo/Milo-Excited.png');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -48,67 +49,44 @@ export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const {
+    tasks,
+    createTask,
+    saveMiloResponse,
+    toggleSubStep,
+    deleteSubStep,
+    deleteTask,
+  } = useTasks();
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [newTaskTitle, setNewTaskTitle] = useState('');
 
-  useFocusEffect(
-    useCallback(() => {
-      setTasks([...globalTasks]);
-      if (globalTasks.length > 0 && !expandedTaskId) {
-        setExpandedTaskId(globalTasks[0].id);
-      }
-    }, [])
-  );
+  // Open the newest task the first time tasks arrive from Firestore
+  const didAutoExpand = useRef(false);
+  useEffect(() => {
+    if (!didAutoExpand.current && tasks.length > 0) {
+      didAutoExpand.current = true;
+      setExpandedTaskId((prev) => prev ?? tasks[0].id);
+    }
+  }, [tasks]);
 
   // Delete parent task group
-  const deleteTaskGroup = useCallback((taskId: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    const globalIdx = globalTasks.findIndex((t) => t.id === taskId);
-    if (globalIdx !== -1) globalTasks.splice(globalIdx, 1);
-  }, []);
+  const deleteTaskGroup = useCallback(
+    (taskId: string) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      deleteTask(taskId);
+    },
+    [deleteTask]
+  );
 
   // Delete individual sub-step
-  const deleteSubStep = useCallback((taskId: string, stepId: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id === taskId) {
-          const updatedSubSteps = t.subSteps.filter((s) => s.id !== stepId);
-          return { ...t, subSteps: updatedSubSteps };
-        }
-        return t;
-      })
-    );
-
-    const targetGroup = globalTasks.find((t) => t.id === taskId);
-    if (targetGroup) {
-      targetGroup.subSteps = targetGroup.subSteps.filter((s) => s.id !== stepId);
-    }
-  }, []);
-
-  const toggleSubStep = useCallback((taskId: string, stepId: string) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id === taskId) {
-          const updated = t.subSteps.map((s) =>
-            s.id === stepId ? { ...s, completed: !s.completed } : s
-          );
-          return { ...t, subSteps: updated, completed: updated.every((s) => s.completed) };
-        }
-        return t;
-      })
-    );
-
-    const targetGroup = globalTasks.find((t) => t.id === taskId);
-    if (targetGroup) {
-      const step = targetGroup.subSteps.find((s) => s.id === stepId);
-      if (step) step.completed = !step.completed;
-      targetGroup.completed = targetGroup.subSteps.every((s) => s.completed);
-    }
-  }, []);
+  const handleDeleteSubStep = useCallback(
+    (task: TaskItem, stepId: string) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      deleteSubStep(task, stepId);
+    },
+    [deleteSubStep]
+  );
 
   const toggleExpand = useCallback((id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -119,22 +97,9 @@ export default function TasksScreen() {
     const input = newTaskTitle.trim();
     if (!input) return;
 
-    const parsedGroups = parseAndSaveMiloTasks(input);
-    if (parsedGroups.length > 0) {
-      setTasks([...globalTasks]);
-      setExpandedTaskId(parsedGroups[0].id);
-    } else {
-      const newTask: TaskItem = {
-        id: `${Date.now()}`,
-        parentTitle: input,
-        completed: false,
-        createdAt: Date.now(),
-        subSteps: [{ id: `${Date.now()}-1`, title: 'Start working on task', completed: false }],
-      };
-      globalTasks.unshift(newTask);
-      setTasks([...globalTasks]);
-      setExpandedTaskId(newTask.id);
-    }
+    const created =
+      saveMiloResponse(input) ?? createTask(input, ['Start working on task']);
+    if (created) setExpandedTaskId(created.id);
     setNewTaskTitle('');
   };
 
@@ -180,14 +145,14 @@ export default function TasksScreen() {
                   <Swipeable
                     key={step.id}
                     renderRightActions={(progress, dragX) =>
-                      renderRightActions(progress, dragX, () => deleteSubStep(item.id, step.id))
+                      renderRightActions(progress, dragX, () => handleDeleteSubStep(item, step.id))
                     }
                     friction={2}
                     overshootRight={false}
                   >
                     <TouchableOpacity
                       style={[styles.subStepCard, step.completed && styles.subStepCompleted]}
-                      onPress={() => toggleSubStep(item.id, step.id)}
+                      onPress={() => toggleSubStep(item, step.id)}
                     >
                       <Ionicons
                         name={step.completed ? 'checkmark-circle' : 'ellipse-outline'}

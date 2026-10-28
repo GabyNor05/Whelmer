@@ -18,7 +18,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { askMilo } from '../../src/services/ai';
-import { parseAndSaveMiloTasks } from '../../src/services/taskService';
+import { useTasks } from '../../src/hooks/useTasks';
 const milo = require('../../assets/milo/chatAvatar.png');
 
 interface Message {
@@ -51,6 +51,7 @@ const FormattedMiloText = ({ text }: { text: string }) => {
 
 export default function MiloChatScreen() {
   const insets = useSafeAreaInsets();
+  const { saveMiloResponse } = useTasks();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -114,12 +115,12 @@ export default function MiloChatScreen() {
   };
 
   const handleAddToTasks = (messageId: string, text: string) => {
-    const saved = parseAndSaveMiloTasks(text);
-    if (saved.length > 0) {
+    const saved = saveMiloResponse(text);
+    if (saved) {
       setMessages((prev) =>
         prev.map((msg) => (msg.id === messageId ? { ...msg, savedToTasks: true } : msg))
       );
-      Alert.alert('Success!', `${saved.length} micro-steps added to your Tasks screen.`);
+      Alert.alert('Success!', `${saved.subSteps.length} micro-steps added to your Tasks screen.`);
     } else {
       Alert.alert('Notice', 'No numbered steps were found in this response to extract as tasks.');
     }
