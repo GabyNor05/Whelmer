@@ -11,13 +11,7 @@
 
 ![Whelmer overview mockup](docs/mockups/01-overview.png)
 
-**▶️ [Watch the demo video](ADD_DEMO_VIDEO_LINK_HERE)**
-
----
-
-## 📑 Contents
-
-[About](#-about) · [Demo](#-demo-video) · [Mockups](#-mockups) · [Features](#-features) · [Diagrams](#-diagrams) · [Tech Stack](#️-tech-stack) · [Installation](#-installation--setup) · [Usage](#-usage-guide) · [Contributions](#-contributions) · [References](#-references--acknowledgements)
+**▶️ [Watch the demo video](https://youtube.com/shorts/dbEnwsnVFe0?si=_d1JmCQhX2yzX-G4)**
 
 ---
 
