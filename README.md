@@ -1,101 +1,312 @@
-# 🌊 Whelmer — Gentle AI Focus & Task Companion for Executive Dysfunction
+# Whelmer
 
-[![React Native](https://img.shields.io/badge/React_Native-0.74+-61DAFB?style=flat&logo=react)](https://reactnative.dev/)
-[![Expo](https://img.shields.io/badge/Expo-SDK_51-000000?style=flat&logo=expo)](https://expo.dev/)
-[![Firebase](https://img.shields.io/badge/Firebase-v10-FFCA28?style=flat&logo=firebase)](https://firebase.google.com/)
-[![Google Gemini](https://img.shields.io/badge/AI-Google_Gemini-4285F4?style=flat&logo=googlegemini)](https://ai.google.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+**A gentle AI focus & task companion for ADHD and executive dysfunction**
 
-**Whelmer** is an accessible, soothing task management and concentration app designed to support individuals navigating ADHD, burnout, and executive dysfunction. Instead of rigid deadlines and overwhelming to-do lists, Whelmer pairs intelligent micro-task breakdown with ambient focus tools and a supportive AI companion named **Milo**.
+[![Expo](https://img.shields.io/badge/Expo-SDK_57-000020?style=flat&logo=expo)](https://expo.dev/)
+[![React Native](https://img.shields.io/badge/React_Native-0.86-61DAFB?style=flat&logo=react)](https://reactnative.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Firebase](https://img.shields.io/badge/Firebase-v12-FFCA28?style=flat&logo=firebase)](https://firebase.google.com/)
+[![Groq](https://img.shields.io/badge/AI-Groq-F55036?style=flat)](https://groq.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-7EC2C6.svg)](LICENSE)
 
----
+![Whelmer overview mockup](docs/mockups/01-overview.png)
 
-## ✨ Key Features
-
-* 💬 **Milo — Your AI Companion:** Powered by Google Gemini (`gemini-2.5-flash`), Milo acts as an empathetic, non-judgmental body double. Milo helps process emotional overwhelm and automatically splits overwhelming goals into bite-sized micro-tasks.
-* 📋 **Micro-Chunked Task Manager:** Organise and track subtask progress with low cognitive noise. Complete steps easily without arbitrary percentage fatigue.
-* ⏱️ **Focus Sessions & Soundscapes:** Built-in Pomodoro timer paired with soothing ambient sound tracks (Lo-Fi, Brown Noise) via `expo-av` to maintain flow state.
-* 🎨 **Calming, Accessible UI:** Built around a neurodivergent-friendly palette (**Soft Cyan `#91D2D9`**, **Light Cream `#EFF2E4`**, and **Muted Sage `#D7D9A3`**) designed to minimize sensory overload.
-* 🔒 **Multi-Tenant Security:** Full user authentication and real-time cloud data isolation using Firebase Auth and Firestore.
+**▶️ [Watch the demo video](ADD_DEMO_VIDEO_LINK_HERE)**
 
 ---
 
-## 🎨 Color Palette
+## 📑 Contents
 
-| Color Name | Hex Code | Purpose |
+[About](#-about) · [Demo](#-demo-video) · [Mockups](#-mockups) · [Features](#-features) · [Diagrams](#-diagrams) · [Tech Stack](#️-tech-stack) · [Installation](#-installation--setup) · [Usage](#-usage-guide) · [Contributions](#-contributions) · [References](#-references--acknowledgements)
+
+---
+
+## 📖 About
+
+**Whelmer** is a calm, low-pressure productivity app for people navigating ADHD, burnout and executive dysfunction. Instead of long to-do lists and anxious countdowns, it pairs **AI micro-task breakdown** with an **ambient focus player** and a supportive AI companion named **Milo**.
+
+| Friction point | How Whelmer helps |
+| :--- | :--- |
+| **Task paralysis** | Milo splits a big, vague goal into small, concrete micro-steps you can save as a task in one tap. |
+| **Time blindness** | A visual focus timer with a spinning vinyl player makes time passing feel tangible. |
+| **Sensory overload** | A soft cream-and-teal palette, no red badges, no aggressive alerts. |
+| **Getting started** | Milo check-ins and prompt chips ("I feel overwhelmed", "Break down my task") remove the blank-page problem. |
+
+> **Student:** Gabrielle Norris · Interactive Development & UX Design · Open Window Institute
+
+---
+
+## 🎬 Demo Video
+
+▶️ **[Watch the Whelmer demo](ADD_DEMO_VIDEO_LINK_HERE)**
+
+---
+
+## 📱 Mockups
+
+### Meet Milo — AI companion
+
+![Milo Chat and task breakdown mockup](docs/mockups/02-milo.png)
+
+### From Chat to Checklist — micro-step tasks
+
+![Saving Milo's steps and ticking them off in Tasks](docs/mockups/03-tasks.png)
+
+### Focus Zone — ambient focus sessions
+
+![Focus Zone vinyl player and Home quick session](docs/mockups/04-focus.png)
+
+### Made for You — secure, personalised setup
+
+![Sign In and Settings mockup](docs/mockups/05-personalised.png)
+
+---
+
+## ✨ Features
+
+- 💬 **Milo, your AI companion** — an empathetic, non-judgemental "body double" powered by the **Groq API** (`groq-sdk`, automatically selects an available text model). Replies render as clean Markdown.
+- 📋 **Micro-step task manager** — save Milo's breakdown as a task group, tick off sub-steps and watch progress fill without percentage pressure.
+- 🎧 **Focus sessions & soundscapes** — a vinyl-style player with a configurable focus timer and streamed lo-fi, nature and ambient tracks via `expo-audio`.
+- 🧭 **Personalised onboarding** — nickname, peak focus time, default focus length, main goal and preferences (notifications, autoplay, haptics), saved to Firestore.
+- 🔒 **Secure accounts** — Firebase Authentication with persistent sessions (AsyncStorage) and per-user profile documents in Cloud Firestore.
+- 🔔 **Gentle reminders** — optional local notifications through `expo-notifications`.
+
+---
+
+## 🧩 Diagrams
+
+### System architecture
+
+```mermaid
+flowchart LR
+    U([User]) --> App
+    subgraph App[Whelmer - Expo / React Native]
+        R[Expo Router screens<br/>Home, Milo, Tasks, Focus, Settings]
+        C[AuthContext]
+        S[Services<br/>ai, taskService, trackService<br/>userService, notificationService]
+        R --> C
+        R --> S
+    end
+    C --> FA[(Firebase Auth)]
+    S --> FS[(Cloud Firestore<br/>users/uid)]
+    S --> G[Groq API<br/>Milo responses]
+    S --> CDN[Pixabay audio CDN<br/>soundscapes]
+    S --> N[expo-notifications<br/>local reminders]
+```
+
+### User flow
+
+```mermaid
+flowchart TD
+    A[Launch app] --> B{Signed in?}
+    B -- No --> L[Login / Sign up] --> O[Onboarding]
+    B -- Yes --> P{Profile complete?}
+    P -- No --> O
+    P -- Yes --> H[Home]
+    O --> H
+    H --> M[Milo Chat] -->|+ Task| T[Tasks]
+    H --> T
+    H --> F[Focus session]
+    H --> ST[Settings]
+```
+
+### Design system
+
+A light-only, neurodivergent-friendly palette chosen to reduce sensory load while keeping text contrast accessible.
+
+| Token | Hex | Use |
 | :--- | :--- | :--- |
-| **Soft Cyan** | `#91D2D9` | Brand Primary / Active Indicators & Headers |
-| **Light Cream** | `#EFF2E4` | Background / Canvas Container |
-| **Muted Sage** | `#D7D9A3` | Accent Cards / Timer Containers |
-| **Dark Slate** | `#2D3748` | High-Contrast Accessible Text |
+| Cream | `#F3F5E9` | Background |
+| Teal | `#7EC2C6` | Headers, buttons, active tab |
+| Teal Ink | `#1B3C3E` | Text on teal, timer |
+| Sage | `#D6E2A3` | Milo & secondary actions |
+| Ink | `#2C3E35` | Primary text |
+| Amber | `#E6A15C` | Progress |
 
----
-
-## 📱 App Architecture & Screens
-
-1. **Auth Screen:** Secure login and registration powered by Firebase Auth.
-2. **Dashboard (Home):** Low-friction overview featuring Milo's quick check-in banner, 1-tap Pomodoro timer, and high-priority micro-tasks.
-3. **Milo AI Chat:** Grounding conversational screen with structured prompt chips (*"I feel overwhelmed"*, *"Break down my task"*) and 1-tap task exporting.
-4. **Task Manager:** Interactive task list featuring subtask breakdown drawers and real-time state syncing.
-5. **Focus & Sound:** Configurable timer with ambient noise controls.
-6. **Settings:** User profile and app preferences.
+**Accessibility:** touch targets of at least 48 × 48 dp, large type, generous spacing, and no flashing or red urgency cues.
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **Frontend:** React Native, Expo, React Native Paper / Tailwind CSS (NativeWind)
-* **State & Navigation:** React Navigation v6, React Hooks
-* **Backend & Database:** Firebase Authentication, Cloud Firestore
-* **AI Engine:** Google Gemini API (`gemini-2.5-flash`)
-* **Audio Engine:** `expo-av`
+| Layer | Technology |
+| :--- | :--- |
+| Framework | React Native 0.86 · Expo SDK 57 · React 19 |
+| Language | TypeScript |
+| Navigation | Expo Router (file-based, stack + bottom tabs) |
+| UI | React Native `StyleSheet`, React Native Paper, `@expo/vector-icons` |
+| Backend & database | Firebase Authentication · Cloud Firestore |
+| AI service | Groq API (`groq-sdk`) |
+| Audio | `expo-audio` |
+| Other | `expo-notifications`, `react-native-gesture-handler`, `react-native-markdown-display` |
+
+### Project structure
+
+```
+Whelmer/
+├── README.md
+├── LICENSE
+├── docs/mockups/               # README mockups
+└── whelmer/                    # Expo app
+    ├── app/                    # Expo Router routes
+    │   ├── _layout.tsx         # Root stack + auth guard
+    │   ├── login.tsx           # Sign in / sign up
+    │   ├── onboarding.tsx      # Preference setup
+    │   ├── settings.tsx        # Account & app settings
+    │   ├── (auth)/             # Auth group
+    │   └── (tabs)/
+    │       ├── _layout.tsx     # Bottom tab bar
+    │       ├── index.tsx       # Home dashboard
+    │       ├── milo.tsx        # Milo AI chat
+    │       ├── tasks.tsx       # Task groups & micro-steps
+    │       └── focus.tsx       # Vinyl player & focus timer
+    ├── src/
+    │   ├── context/AuthContext.tsx
+    │   ├── services/           # firebase, ai (Groq), taskService, trackService,
+    │   │                       # userService, notificationService
+    │   ├── constants/Colors.ts
+    │   └── types/user.ts
+    ├── assets/                 # App icon, splash, Milo mood avatars
+    ├── app.json
+    └── package.json
+```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Installation & Setup
+
+Whelmer is a mobile frontend (Expo) backed by Firebase (auth + database) and the Groq API (AI). There is no separate server to run.
 
 ### Prerequisites
 
-Ensure you have the following installed on your machine:
-* [Node.js](https://nodejs.org/) (v18 or higher)
-* [Expo Go](https://expo.dev/client) app on your mobile device (or iOS Simulator / Android Studio)
-* A [Firebase Project](https://console.firebase.google.com/)
-* A [Google Gemini API Key](https://aistudio.google.com/)
+- [Node.js](https://nodejs.org/) 20 or later
+- [Expo Go](https://expo.dev/go) on your phone, or an Android emulator / iOS simulator
+- A [Firebase project](https://console.firebase.google.com/)
+- A [Groq API key](https://console.groq.com/keys)
 
-### Installation
+### 1. Frontend
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-username/whelmer.git](https://github.com/your-username/whelmer.git)
-   cd whelmer
+```bash
+git clone https://github.com/GabyNor05/Whelmer.git
+cd Whelmer/whelmer
+npm install
+```
+
+### 2. Backend & database (Firebase)
+
+1. In the [Firebase console](https://console.firebase.google.com/), create a project and add a **Web app** to get your config values.
+2. **Authentication → Sign-in method:** enable **Email/Password**.
+3. **Firestore Database:** create a database, then paste these rules under **Rules** and publish:
+   ```js
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{uid} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+       match /users/{uid}/{document=**} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
    ```
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-   
-3. **Configure Environment Variables:**
-   Create a .env file in the root directory and add your credentials:
-   ```bash
-   EXPO_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-   EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-   EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
-   EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
-   ```
+### 3. AI service (Groq)
 
-4. **Start the development server:**
-   ```bash
-   npx expo start
-   ```
-   Scan the QR code with the Expo Go app on iOS/Android to run Whelmer on your device.
-    
-##🔒 Security & Privacy
-- Data Isolation: User task logs, chat strings, and preferences are segregated using Firestore Security Rules anchored to request.auth.uid.
-- API Protection: System instruction boundaries restrict Gemini responses exclusively to supportive productivity coaching.
+Create a free API key at the [Groq console](https://console.groq.com/keys).
 
-##📄 License
-Distributed under the MIT License. See LICENSE for more information.
+### 4. Environment variables
+
+Create `whelmer/.env`:
+
+```bash
+EXPO_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
+EXPO_PUBLIC_GROQ_API_KEY=your_groq_api_key
+```
+
+> `.env` is git-ignored — never commit your keys.
+
+### 5. Run the app
+
+```bash
+npx expo start
+```
+
+Scan the QR code with Expo Go, or press `a` for Android / `i` for iOS.
+
+---
+
+## 🧑‍💻 Usage Guide
+
+The app has four bottom tabs — **Home, Milo Chat, Tasks, Focus** — plus Settings.
+
+1. **Create an account.** Sign up with an email and password on the Login screen.
+2. **Complete onboarding.** Choose a nickname, peak focus time, default focus length and main goal, then toggle notifications, autoplay and haptics.
+3. **Home.** See Milo's check-in, your current tasks and a shortcut into a focus session.
+4. **Milo Chat.** Tap a prompt chip such as *"Break down my task"*, or type a goal (e.g. *"I need to clean my room"*). Milo replies with small steps — tap **+ Task** under the reply to save them as a task group.
+5. **Tasks.** Expand a task to see its micro-steps and tick each one as you go; the progress bar fills as you move through them.
+6. **Focus.** Pick a soundscape, set the timer and press play. The vinyl spins while the session runs.
+7. **Settings.** Tap the profile icon on Home to edit your profile and preferences, or log out.
+
+> **Quick test path:** Sign up → Onboarding → Milo: *"Break down: write my essay"* → tap **+ Task** → Tasks: tick a step → Focus: start a session.
+
+---
+
+## 🔒 Security & Privacy
+
+- Each user's profile lives at `users/{uid}` in Firestore, protected by rules tied to `request.auth.uid`.
+- API keys are loaded from environment variables, not hard-coded.
+- Milo's system prompt keeps responses focused on supportive productivity coaching.
+
+---
+
+## 🧭 Roadmap
+
+- [ ] Persist tasks and micro-steps to Firestore (`users/{uid}/tasks`) — currently held in memory per session
+- [ ] Standalone Android APK via EAS Build
+- [ ] Shared theme tokens file for all colours
+- [ ] Notebook / daily journal (backlog)
+
+---
+
+## 👥 Contributions
+
+| Contributor | Role | Contribution |
+| :--- | :--- | :--- |
+| **Gabrielle Norris** | Developer & designer | Research, UX/UI design, front-end development, Firebase and AI integration, testing |
+| **Tsungai Katsuro** | Lecturer, repository collaborator | Project supervision, guidance and feedback |
+| **Caylin Oosterhuizen** | Illustrator | Whelmer logo and all Milo character variations |
+
+### AI tools used
+
+AI tools supported development but are credited as tools, not as contributors:
+
+- **Claude (Anthropic)** — code review, debugging support and documentation drafting
+- **Google Gemini** — development assistance during early prototyping
+
+---
+
+## 📚 References & Acknowledgements
+
+- **Expo & Expo Router documentation** — [docs.expo.dev](https://docs.expo.dev/)
+- **React Native documentation** — [reactnative.dev](https://reactnative.dev/)
+- **Firebase documentation** (Auth & Firestore) — [firebase.google.com/docs](https://firebase.google.com/docs)
+- **Groq API & `groq-sdk`** — [console.groq.com/docs](https://console.groq.com/docs)
+- **Ambient soundscapes** — royalty-free tracks from [Pixabay](https://pixabay.com/music/), used under the Pixabay Content License
+- **Logo & Milo illustrations** — Kaylin Oosterhuizen
+- **Icons** — [`@expo/vector-icons`](https://icons.expo.fyi/)
+- **Libraries** — React Native Paper, react-native-markdown-display, react-native-gesture-handler
+- Thanks to my lecturers at **Open Window Institute** for their guidance and feedback.
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+
+*Made with care by Gabrielle Norris · Open Window Institute · 2026*

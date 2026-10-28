@@ -42,13 +42,16 @@ export function useTasks() {
     () => ({
       createTask: (title: string, steps?: string[]) =>
         uid ? taskService.createTask(uid, title, steps) : null,
-      saveMiloResponse: (text: string) =>
-        uid ? taskService.parseAndSaveMiloTasks(uid, text) : null,
+      saveMiloResponse: (text: string, userRequest?: string) =>
+        uid ? taskService.parseAndSaveMiloTasks(uid, text, userRequest) : null,
       toggleTaskCompleted: (task: TaskItem) => {
         if (uid) taskService.toggleTaskCompleted(uid, task);
       },
       toggleSubStep: (task: TaskItem, stepId: string) => {
         if (uid) taskService.toggleSubStep(uid, task, stepId);
+      },
+      toggleStepDetail: (task: TaskItem, stepId: string, detailId: string) => {
+        if (uid) taskService.toggleStepDetail(uid, task, stepId, detailId);
       },
       addSubStep: (task: TaskItem, title: string) => {
         if (uid) taskService.addSubStep(uid, task, title);

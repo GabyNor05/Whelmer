@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { cleanStepText } from '../../src/services/taskService';
 import type { TaskItem } from '../../src/services/taskService';
 import { useTasks } from '../../src/hooks/useTasks';
 const milo = require('../../assets/milo/Milo-Excited.png');
@@ -54,6 +55,7 @@ export default function TasksScreen() {
     createTask,
     saveMiloResponse,
     toggleSubStep,
+    toggleStepDetail,
     deleteSubStep,
     deleteTask,
   } = useTasks();
@@ -87,6 +89,13 @@ export default function TasksScreen() {
     },
     [deleteSubStep]
   );
+
+  // Which steps have their smaller details open (collapsed by default to avoid overwhelm)
+  const [openDetails, setOpenDetails] = useState<Record<string, boolean>>({});
+  const toggleDetails = useCallback((stepId: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenDetails((prev) => ({ ...prev, [stepId]: !prev[stepId] }));
+  }, []);
 
   const toggleExpand = useCallback((id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -150,26 +159,70 @@ export default function TasksScreen() {
                     friction={2}
                     overshootRight={false}
                   >
-                    <TouchableOpacity
-                      style={[styles.subStepCard, step.completed && styles.subStepCompleted]}
-                      onPress={() => toggleSubStep(item, step.id)}
-                    >
-                      <Ionicons
-                        name={step.completed ? 'checkmark-circle' : 'ellipse-outline'}
-                        size={22}
-                        color={step.completed ? '#7BAE7F' : '#A4C3B2'}
-                      />
-                      <View style={styles.subStepContent}>
-                        <Text
-                          style={[styles.subStepText, step.completed && styles.completedText]}
-                        >
-                          {step.title.replace(/\*\*/g, '')}
-                        </Text>
-                        <View style={styles.subStepBadgeRow}>
-                          <Text style={styles.stepBadge}>Step {idx + 1}</Text>
+                    <View style={[styles.subStepCard, styles.subStepCardColumn, step.completed && styles.subStepCompleted]}>
+                      <TouchableOpacity
+                        style={styles.subStepRow}
+                        onPress={() => toggleSubStep(item, step.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons
+                          name={step.completed ? 'checkmark-circle' : 'ellipse-outline'}
+                          size={22}
+                          color={step.completed ? '#7BAE7F' : '#A4C3B2'}
+                        />
+                        <View style={styles.subStepContent}>
+                          <Text
+                            style={[styles.subStepText, step.completed && styles.completedText]}
+                          >
+                            {cleanStepText(step.title)}
+                          </Text>
+                          <View style={styles.subStepBadgeRow}>
+                            <Text style={styles.stepBadge}>Step {idx + 1}</Text>
+                          </View>
                         </View>
-                      </View>
-                    </TouchableOpacity>
+                      </TouchableOpacity>
+
+                      {/* Smaller tickable details inside this step */}
+                      {step.details && step.details.length > 0 && (
+                        <View>
+                          <TouchableOpacity
+                            style={styles.detailsToggle}
+                            onPress={() => toggleDetails(step.id)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name={openDetails[step.id] ? 'chevron-up' : 'chevron-down'}
+                              size={16}
+                              color="#3B6B6E"
+                            />
+                            <Text style={styles.detailsToggleText}>
+                              {step.details.filter((d) => d.completed).length} of {step.details.length} smaller steps
+                            </Text>
+                          </TouchableOpacity>
+
+                          {openDetails[step.id] &&
+                            step.details.map((detail) => (
+                              <TouchableOpacity
+                                key={detail.id}
+                                style={styles.detailRow}
+                                onPress={() => toggleStepDetail(item, step.id, detail.id)}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons
+                                  name={detail.completed ? 'checkmark-circle' : 'ellipse-outline'}
+                                  size={18}
+                                  color={detail.completed ? '#7BAE7F' : '#A4C3B2'}
+                                />
+                                <Text
+                                  style={[styles.detailText, detail.completed && styles.completedText]}
+                                >
+                                  {cleanStepText(detail.title)}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                        </View>
+                      )}
+                    </View>
                   </Swipeable>
                 ))}
               </View>
@@ -339,5 +392,29 @@ const styles = StyleSheet.create({
   subStepText: { fontSize: 14, color: '#222222', lineHeight: 19, fontWeight: '500' },
   completedText: { textDecorationLine: 'line-through', color: '#888888' },
   subStepBadgeRow: { marginTop: 4 },
-  stepBadge: { fontSize: 11, fontWeight: '600', color: '#7EC2C6' },
+  stepBadge: { fontSize: 11, fontWeight: '600', color: '#3B6B6E' },
+  subStepCardColumn: { flexDirection: 'column', alignItems: 'stretch', gap: 0 },
+  subStepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  detailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginLeft: 32,
+    minHeight: 36,
+    alignSelf: 'flex-start',
+    paddingRight: 8,
+  },
+  detailsToggleText: { fontSize: 13, fontWeight: '600', color: '#3B6B6E' },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginLeft: 32,
+    minHeight: 44,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.04)',
+  },
+  detailText: { flex: 1, fontSize: 13, lineHeight: 18, color: '#2C3E35' },
 });

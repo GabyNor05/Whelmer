@@ -2,9 +2,13 @@
 import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { LogBox } from 'react-native';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 
 SplashScreen.preventAutoHideAsync();
+
+// DEMO: hide the Expo Go notifications warning (push support removed in SDK 53)
+LogBox.ignoreLogs(['expo-notifications', 'Expo Notifications', 'Notification permission']);
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();

@@ -27,7 +27,7 @@ export default function FocusScreen() {
   const [isPickerVisible, setIsPickerVisible] = useState(false);
 
   // Audio player hook from expo-audio
-  const player = useAudioPlayer(selectedTrack.uri);
+  const player = useAudioPlayer(selectedTrack.source);
 
   // Animation Refs
   const spinValue = useRef(new Animated.Value(0)).current;
