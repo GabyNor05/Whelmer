@@ -1,5 +1,7 @@
 import Groq from 'groq-sdk';
 import type { User as UserProfile } from '../types/user';
+import type { TaskItem } from './taskService';
+import { duePhrase, formatDateTime } from '../utils/dates';
 
 const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 
@@ -140,3 +142,63 @@ export async function askMilo(
     return "I couldn't connect right now, but take your time. Let's try again in a moment.";
   }
 }
+
+// ---------------------------------------------------------------------------
+// Gentle time plan for a task with a deadline (Task screen -> "Ask Milo for a plan")
+// ---------------------------------------------------------------------------
+
+export async function askMiloForTimePlan(
+  task: TaskItem,
+  profile?: Partial<UserProfile> | null
+): Promise<string> {
+  const now = new Date();
+  const remaining = task.subSteps.filter((s) => !s.completed);
+  const done = task.subSteps.length - remaining.length;
+
+  const stepList = remaining.length
+    ? remaining
+        .map((s, i) => {
+          const details = (s.details ?? []).filter((d) => !d.completed).map((d) => d.title);
+          return `${i + 1}. ${s.title}${details.length ? ` (smaller steps: ${details.join('; ')})` : ''}`;
+        })
+        .join('\n')
+    : '(all steps are done)';
+
+  const prompt = `Task: "${task.parentTitle}"
+Right now it is ${formatDateTime(now.getTime())}.
+Deadline: ${task.deadline ? `${formatDateTime(task.deadline)} (${duePhrase(task.deadline, now)})` : 'none set'}.
+Steps already done: ${done} of ${task.subSteps.length}.
+Steps still to do:
+${stepList}
+
+Suggest WHEN to do each remaining step so it is finished comfortably before the deadline.
+Rules:
+- Start with one short, warm sentence (no pressure, no guilt).
+- Then a "-" bullet list, one bullet per step, like: "- **Today, 18:30** · Step title (about 25 min)".
+- Use real days and times between now and the deadline. Never schedule between 22:00 and 08:00 unless they are a night owl.
+- Prefer their peak focus time for harder steps and keep each sitting within one focus session.
+- Leave a buffer before the deadline and include at least one rest break if there are several days.
+- If time is very tight, suggest only the single most important step first and say that is okay.
+- Under 130 words. No headings.`;
+
+  try {
+    const activeModel = await getAvailableModel();
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: MILO_SYSTEM_INSTRUCTION + buildPersonalContext(profile) },
+        { role: 'user', content: prompt },
+      ],
+      model: activeModel,
+      temperature: 0.5,
+      max_tokens: 450,
+    });
+    return (
+      completion.choices[0]?.message?.content?.trim() ||
+      "I couldn't put a plan together just now. Let's try again in a moment."
+    );
+  } catch (error) {
+    console.error('Error calling Groq API (time plan):', error);
+    throw error;
+  }
+}
+

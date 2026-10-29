@@ -35,6 +35,10 @@ export interface TaskItem {
   completed: boolean;
   createdAt: number;
   subSteps: SubStep[];
+  // Optional due date (ms since epoch), set by the user on the task screen
+  deadline?: number | null;
+  // Milo's suggested time plan for reaching the deadline (markdown)
+  miloPlan?: string | null;
 }
 
 type TaskDoc = Omit<TaskItem, 'id'>;
@@ -79,6 +83,8 @@ const toTaskItem = (id: string, data: Partial<TaskDoc>): TaskItem => ({
   completed: data.completed ?? false,
   createdAt: data.createdAt ?? 0,
   subSteps: Array.isArray(data.subSteps) ? data.subSteps : [],
+  deadline: typeof data.deadline === 'number' ? data.deadline : null,
+  miloPlan: typeof data.miloPlan === 'string' ? data.miloPlan : null,
 });
 
 
@@ -155,7 +161,9 @@ export const toggleStepDetail = (
 };
 
 export const addSubStep = (uid: string, task: TaskItem, title: string): void => {
-  const subSteps = [...task.subSteps, { id: makeStepId(), title, completed: false }];
+  const clean = cleanStepText(title);
+  if (!clean) return;
+  const subSteps = [...task.subSteps, { id: makeStepId(), title: clean, completed: false }];
   commit('addSubStep', updateDoc(taskRef(uid, task.id), { subSteps, completed: false }));
 };
 
@@ -163,6 +171,60 @@ export const deleteSubStep = (uid: string, task: TaskItem, stepId: string): void
   const subSteps = task.subSteps.filter((s) => s.id !== stepId);
   const completed = subSteps.length > 0 && subSteps.every((s) => s.completed);
   commit('deleteSubStep', updateDoc(taskRef(uid, task.id), { subSteps, completed }));
+};
+
+// Rename the task, set/clear its deadline, or save Milo's plan
+export const updateTaskFields = (
+  uid: string,
+  taskId: string,
+  fields: Partial<Pick<TaskItem, 'parentTitle' | 'deadline' | 'miloPlan'>>
+): void => {
+  commit('updateTaskFields', updateDoc(taskRef(uid, taskId), fields));
+};
+
+export const renameSubStep = (uid: string, task: TaskItem, stepId: string, title: string): void => {
+  const clean = cleanStepText(title);
+  if (!clean) return;
+  const subSteps = task.subSteps.map((s) => (s.id === stepId ? { ...s, title: clean } : s));
+  commit('renameSubStep', updateDoc(taskRef(uid, task.id), { subSteps }));
+};
+
+export const addStepDetail = (uid: string, task: TaskItem, stepId: string, title: string): void => {
+  const clean = cleanStepText(title);
+  if (!clean) return;
+  const subSteps = task.subSteps.map((s) =>
+    s.id === stepId
+      ? {
+          ...s,
+          completed: false,
+          details: [...(s.details ?? []), { id: makeStepId(), title: clean, completed: false }],
+        }
+      : s
+  );
+  commit('addStepDetail', updateDoc(taskRef(uid, task.id), { subSteps, completed: false }));
+};
+
+export const deleteStepDetail = (uid: string, task: TaskItem, stepId: string, detailId: string): void => {
+  const subSteps = task.subSteps.map((s) => {
+    if (s.id !== stepId || !s.details) return s;
+    const details = s.details.filter((d) => d.id !== detailId);
+    const next: SubStep = { ...s, details };
+    if (details.length > 0) next.completed = details.every((d) => d.completed);
+    return next;
+  });
+  const completed = subSteps.length > 0 && subSteps.every((s) => s.completed);
+  commit('deleteStepDetail', updateDoc(taskRef(uid, task.id), { subSteps, completed }));
+};
+
+// Would this toggle finish the whole task? Used to celebrate (haptics) at the right moment.
+export const wouldCompleteTask = (task: TaskItem, stepId: string, detailId?: string): boolean => {
+  if (task.completed) return false;
+  return task.subSteps.every((s) => {
+    if (s.id !== stepId) return s.completed;
+    if (!detailId) return !s.completed;
+    const details = s.details ?? [];
+    return details.every((d) => (d.id === detailId ? !d.completed : d.completed));
+  });
 };
 
 export const deleteTask = (uid: string, taskId: string): void => {

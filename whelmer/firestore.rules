@@ -16,14 +16,17 @@ service cloud.firestore {
       // Tasks with embedded micro-steps (taskService.ts)
       match /tasks/{taskId} {
         function isValidTask(data) {
-          return data.keys().hasOnly(['parentTitle', 'completed', 'createdAt', 'subSteps'])
+          return data.keys().hasOnly(['parentTitle', 'completed', 'createdAt', 'subSteps', 'deadline', 'miloPlan'])
             && data.parentTitle is string
             && data.parentTitle.size() > 0
             && data.parentTitle.size() <= 200
             && data.completed is bool
             && data.createdAt is number
             && data.subSteps is list
-            && data.subSteps.size() <= 50;
+            && data.subSteps.size() <= 50
+            && (!('deadline' in data) || data.deadline == null || data.deadline is number)
+            && (!('miloPlan' in data) || data.miloPlan == null
+                || (data.miloPlan is string && data.miloPlan.size() <= 6000));
         }
 
         allow read, delete: if isOwner(uid);

@@ -19,10 +19,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/context/AuthContext';
 import { useTasks } from '../src/hooks/useTasks';
 import {
+  changePassword,
   deleteUserAccount,
   updateUserPreferences,
   updateUserProfile,
 } from '../src/services/userService';
+import { notificationsSupported, requestNotificationPermission } from '../src/services/notificationService';
 import type { User as UserProfile, UserPreferences } from '../src/types/user';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -120,7 +122,6 @@ export default function SettingsScreen() {
   const user = {
     name: profile?.nickname || authUser?.displayName || 'Whelmer user',
     email: profile?.email || authUser?.email || '',
-    avatarUrl: profile?.avatarUrl,
   };
 
   // Settings toggles live in Firestore at users/{uid}.preferences
@@ -133,6 +134,11 @@ export default function SettingsScreen() {
   const [isHelpModalVisible, setIsHelpModalVisible] = useState(false);
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+  const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [isSavingPw, setIsSavingPw] = useState(false);
 
   // Form Fields
   const [editName, setEditName] = useState('');
@@ -146,7 +152,57 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleToggleNotifications = (val: boolean) => savePreference('pushNotifications', val);
+  // Turning reminders on asks the phone for permission first (in the APK)
+  const handleToggleNotifications = async (val: boolean) => {
+    if (val && notificationsSupported) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        Alert.alert(
+          'Notifications are off',
+          'To get gentle reminders, allow notifications for Whelmer in your phone settings.'
+        );
+        savePreference('pushNotifications', false);
+        return;
+      }
+    }
+    savePreference('pushNotifications', val);
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwCurrent || !pwNew) {
+      Alert.alert('Almost there', 'Fill in your current and new password.');
+      return;
+    }
+    if (pwNew.length < 6) {
+      Alert.alert('Password too short', 'Your new password needs at least 6 characters.');
+      return;
+    }
+    if (pwNew !== pwConfirm) {
+      Alert.alert("Passwords don't match", 'Type the same new password twice.');
+      return;
+    }
+    setIsSavingPw(true);
+    try {
+      await changePassword(pwCurrent, pwNew);
+      setIsPasswordModalVisible(false);
+      Alert.alert('Password changed', 'Use your new password next time you log in.');
+    } catch (e: any) {
+      const code = e?.code ?? '';
+      const message =
+        code === 'auth/wrong-password' || code === 'auth/invalid-credential'
+          ? 'Your current password is incorrect.'
+          : code === 'auth/weak-password'
+          ? 'Please choose a stronger password.'
+          : code === 'auth/too-many-requests'
+          ? 'Too many attempts. Please wait a moment and try again.'
+          : code === 'auth/network-request-failed'
+          ? 'No connection. Please check your internet and try again.'
+          : 'Something went wrong. Please try again.';
+      Alert.alert('Could not change password', message);
+    } finally {
+      setIsSavingPw(false);
+    }
+  };
   const handleToggleAutoplay = (val: boolean) => savePreference('autoPlay', val);
   const handleToggleHaptics = (val: boolean) => savePreference('haptics', val);
 
@@ -284,26 +340,33 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* User Profile Card */}
         <View style={styles.profileCard}>
-          {user.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarFallback]}>
-              <Ionicons name="person" size={36} color="#3B6B6E" />
-            </View>
-          )}
           <Text style={styles.userName}>{user.name}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
 
-          <TouchableOpacity
-            style={styles.editProfileBtn}
-            onPress={() => {
-              setEditName(user.name);
-              setIsEditModalVisible(true);
-            }}
-          >
-            <Ionicons name="pencil-sharp" size={14} color="#3B4D21" />
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
+          <View style={styles.profileActions}>
+            <TouchableOpacity
+              style={styles.editProfileBtn}
+              onPress={() => {
+                setEditName(user.name);
+                setIsEditModalVisible(true);
+              }}
+            >
+              <Ionicons name="pencil-sharp" size={14} color="#3B4D21" />
+              <Text style={styles.editProfileText}>Edit Name</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.editProfileBtn, styles.passwordBtn]}
+              onPress={() => {
+                setPwCurrent('');
+                setPwNew('');
+                setPwConfirm('');
+                setIsPasswordModalVisible(true);
+              }}
+            >
+              <Ionicons name="key-outline" size={14} color="#3B6B6E" />
+              <Text style={[styles.editProfileText, { color: '#3B6B6E' }]}>Change Password</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Section: Focus Profile (from onboarding) */}
@@ -370,8 +433,12 @@ export default function SettingsScreen() {
               <Ionicons name="notifications-outline" size={20} color="#3B6B6E" />
             </View>
             <View style={styles.settingTextGroup}>
-              <Text style={styles.settingTitle}>Push Notifications</Text>
-              <Text style={styles.settingSubtitle}>Milo reminders & daily goals</Text>
+              <Text style={styles.settingTitle}>Gentle Reminders</Text>
+              <Text style={styles.settingSubtitle}>
+                {notificationsSupported
+                  ? 'Session done, peak-time & deadline nudges'
+                  : 'Works in the installed app (not Expo Go)'}
+              </Text>
             </View>
             <Switch
               value={pushNotifications}
@@ -626,6 +693,49 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Change Password */}
+      <Modal visible={isPasswordModalVisible} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Change password</Text>
+            {[
+              { label: 'Current password', value: pwCurrent, set: setPwCurrent },
+              { label: 'New password', value: pwNew, set: setPwNew },
+              { label: 'Confirm new password', value: pwConfirm, set: setPwConfirm },
+            ].map((f) => (
+              <View key={f.label} style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>{f.label}</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={f.value}
+                  onChangeText={f.set}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  editable={!isSavingPw}
+                  placeholderTextColor="#999999"
+                />
+              </View>
+            ))}
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setIsPasswordModalVisible(false)}
+                disabled={isSavingPw}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, isSavingPw && { opacity: 0.6 }]}
+                onPress={handleChangePassword}
+                disabled={isSavingPw}
+              >
+                {isSavingPw ? <ActivityIndicator color="#1B3C3E" /> : <Text style={styles.modalSaveText}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -685,6 +795,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   editProfileText: { fontSize: 12, fontWeight: '700', color: '#3B4D21' },
+  profileActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  passwordBtn: { backgroundColor: '#E6F2F2' },
   section: { marginBottom: 20 },
   sectionTitle: {
     fontSize: 12,

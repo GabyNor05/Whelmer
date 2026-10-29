@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, memo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,16 @@ import {
   Platform,
   UIManager,
   Animated,
-  Image
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { cleanStepText } from '../../src/services/taskService';
 import type { TaskItem } from '../../src/services/taskService';
 import { useTasks } from '../../src/hooks/useTasks';
+import { countSteps, tasksBannerMessage } from '../../src/utils/encouragement';
+import { relativeDay } from '../../src/utils/dates';
 const milo = require('../../assets/milo/Milo-Excited.png');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -49,30 +50,20 @@ const renderRightActions = (
 export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-
-  const {
-    tasks,
-    createTask,
-    saveMiloResponse,
-    toggleSubStep,
-    toggleStepDetail,
-    deleteSubStep,
-    deleteTask,
-  } = useTasks();
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const { tasks, createTask, saveMiloResponse, deleteTask } = useTasks();
   const [newTaskTitle, setNewTaskTitle] = useState('');
 
-  // Open the newest task the first time tasks arrive from Firestore
-  const didAutoExpand = useRef(false);
-  useEffect(() => {
-    if (!didAutoExpand.current && tasks.length > 0) {
-      didAutoExpand.current = true;
-      setExpandedTaskId((prev) => prev ?? tasks[0].id);
-    }
-  }, [tasks]);
+  // Unfinished tasks first (newest at the top), finished ones below
+  const sorted = useMemo(
+    () => [...tasks].sort((a, b) => Number(a.completed) - Number(b.completed) || b.createdAt - a.createdAt),
+    [tasks]
+  );
+  const banner = tasksBannerMessage(tasks);
+  const doneTasks = tasks.filter((t) => t.completed).length;
+  const tasksPercent = tasks.length ? Math.round((doneTasks / tasks.length) * 100) : 0;
 
-  // Delete parent task group
+  const openTask = (id: string) => router.push({ pathname: '/task/[id]', params: { id } });
+
   const deleteTaskGroup = useCallback(
     (taskId: string) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -81,153 +72,65 @@ export default function TasksScreen() {
     [deleteTask]
   );
 
-  // Delete individual sub-step
-  const handleDeleteSubStep = useCallback(
-    (task: TaskItem, stepId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      deleteSubStep(task, stepId);
-    },
-    [deleteSubStep]
-  );
-
-  // Which steps have their smaller details open (collapsed by default to avoid overwhelm)
-  const [openDetails, setOpenDetails] = useState<Record<string, boolean>>({});
-  const toggleDetails = useCallback((stepId: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpenDetails((prev) => ({ ...prev, [stepId]: !prev[stepId] }));
-  }, []);
-
-  const toggleExpand = useCallback((id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedTaskId((prev) => (prev === id ? null : id));
-  }, []);
-
   const handleAddNewTask = () => {
     const input = newTaskTitle.trim();
     if (!input) return;
-
-    const created =
-      saveMiloResponse(input) ?? createTask(input, ['Start working on task']);
-    if (created) setExpandedTaskId(created.id);
+    const created = saveMiloResponse(input) ?? createTask(input, ['Start working on task']);
     setNewTaskTitle('');
+    // Open it straight away so they can shape the steps and add a deadline
+    if (created) openTask(created.id);
   };
 
-  const renderParentTask = ({ item }: { item: TaskItem }) => {
-    const isExpanded = expandedTaskId === item.id;
-    const doneCount = item.subSteps.filter((s) => s.completed).length;
-    const totalSteps = item.subSteps.length;
+  const renderTask = ({ item }: { item: TaskItem }) => {
+    const { done, total } = countSteps(item);
+    const percent = total ? Math.round((done / total) * 100) : 0;
+    const deadlinePassed = !!item.deadline && item.deadline < Date.now();
 
     return (
-      <View style={styles.groupCardWrapper}>
+      <View style={styles.cardWrapper}>
         <Swipeable
-          renderRightActions={(progress, dragX) =>
-            renderRightActions(progress, dragX, () => deleteTaskGroup(item.id))
-          }
+          renderRightActions={(progress, dragX) => renderRightActions(progress, dragX, () => deleteTaskGroup(item.id))}
           friction={2}
           overshootRight={false}
         >
-          <View style={styles.groupCard}>
-            {/* Parent Header */}
-            <TouchableOpacity
-              style={styles.parentHeader}
-              onPress={() => toggleExpand(item.id)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.parentAccentBar} />
-              <View style={styles.parentTitleContainer}>
-                <Text style={styles.parentTitle}>{item.parentTitle}</Text>
-                <Text style={styles.stepCounterText}>
-                  {doneCount} / {totalSteps} steps completed
-                </Text>
+          <TouchableOpacity
+            style={[styles.card, item.completed && styles.cardDone]}
+            onPress={() => openTask(item.id)}
+            activeOpacity={0.85}
+            accessibilityHint="Opens this task"
+          >
+            <View style={[styles.accentBar, item.completed && { backgroundColor: '#7BAE7F' }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, item.completed && styles.cardTitleDone]} numberOfLines={2}>
+                {item.parentTitle}
+              </Text>
+
+              <View style={styles.metaRow}>
+                {item.completed ? (
+                  <Text style={styles.doneBadge}>Done 🎉</Text>
+                ) : (
+                  <Text style={styles.metaText}>
+                    {done} of {total} steps
+                  </Text>
+                )}
+                {item.deadline && !item.completed ? (
+                  <View style={[styles.deadlineChip, deadlinePassed && styles.deadlineChipPast]}>
+                    <Ionicons name="calendar-outline" size={12} color={deadlinePassed ? '#8A6D3B' : '#3B6B6E'} />
+                    <Text style={[styles.deadlineText, deadlinePassed && { color: '#8A6D3B' }]}>
+                      {deadlinePassed ? 'Date passed' : `Due ${relativeDay(item.deadline)}`}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              <Ionicons
-                name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                color="#526E70"
-              />
-            </TouchableOpacity>
 
-            {/* Nested Sub-Steps */}
-            {isExpanded && (
-              <View style={styles.subStepsList}>
-                {item.subSteps.map((step, idx) => (
-                  <Swipeable
-                    key={step.id}
-                    renderRightActions={(progress, dragX) =>
-                      renderRightActions(progress, dragX, () => handleDeleteSubStep(item, step.id))
-                    }
-                    friction={2}
-                    overshootRight={false}
-                  >
-                    <View style={[styles.subStepCard, styles.subStepCardColumn, step.completed && styles.subStepCompleted]}>
-                      <TouchableOpacity
-                        style={styles.subStepRow}
-                        onPress={() => toggleSubStep(item, step.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name={step.completed ? 'checkmark-circle' : 'ellipse-outline'}
-                          size={22}
-                          color={step.completed ? '#7BAE7F' : '#A4C3B2'}
-                        />
-                        <View style={styles.subStepContent}>
-                          <Text
-                            style={[styles.subStepText, step.completed && styles.completedText]}
-                          >
-                            {cleanStepText(step.title)}
-                          </Text>
-                          <View style={styles.subStepBadgeRow}>
-                            <Text style={styles.stepBadge}>Step {idx + 1}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-
-                      {/* Smaller tickable details inside this step */}
-                      {step.details && step.details.length > 0 && (
-                        <View>
-                          <TouchableOpacity
-                            style={styles.detailsToggle}
-                            onPress={() => toggleDetails(step.id)}
-                            activeOpacity={0.7}
-                          >
-                            <Ionicons
-                              name={openDetails[step.id] ? 'chevron-up' : 'chevron-down'}
-                              size={16}
-                              color="#3B6B6E"
-                            />
-                            <Text style={styles.detailsToggleText}>
-                              {step.details.filter((d) => d.completed).length} of {step.details.length} smaller steps
-                            </Text>
-                          </TouchableOpacity>
-
-                          {openDetails[step.id] &&
-                            step.details.map((detail) => (
-                              <TouchableOpacity
-                                key={detail.id}
-                                style={styles.detailRow}
-                                onPress={() => toggleStepDetail(item, step.id, detail.id)}
-                                activeOpacity={0.7}
-                              >
-                                <Ionicons
-                                  name={detail.completed ? 'checkmark-circle' : 'ellipse-outline'}
-                                  size={18}
-                                  color={detail.completed ? '#7BAE7F' : '#A4C3B2'}
-                                />
-                                <Text
-                                  style={[styles.detailText, detail.completed && styles.completedText]}
-                                >
-                                  {cleanStepText(detail.title)}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                        </View>
-                      )}
-                    </View>
-                  </Swipeable>
-                ))}
-              </View>
-            )}
-          </View>
+              {!item.completed && total > 0 ? (
+                <View style={styles.miniTrack}>
+                  <View style={[styles.miniFill, { width: `${percent}%` }]} />
+                </View>
+              ) : null}
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#526E70" />
+          </TouchableOpacity>
         </Swipeable>
       </View>
     );
@@ -241,19 +144,32 @@ export default function TasksScreen() {
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.headerTitle}>Your Tasks</Text>
-              <Text style={styles.headerSubtitle}>Swipe left on a task to delete</Text>
+              <Text style={styles.headerSubtitle}>Tap a task to open it · swipe left to delete</Text>
             </View>
-            <TouchableOpacity
-              style={styles.aiBreakdownBtn}
-              onPress={() => router.push('/(tabs)/milo')}
-            >
-              <Image source={milo} style={{ height:15, width: 11, borderRadius: 100 }} />
+            <TouchableOpacity style={styles.aiBreakdownBtn} onPress={() => router.push('/(tabs)/milo')}>
+              <Image source={milo} style={{ height: 15, width: 11, borderRadius: 100 }} />
               <Text style={styles.aiBreakdownText}>Ask Milo</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.body}>
+          {/* Encouraging progress banner */}
+          <View style={styles.banner}>
+            <Text style={styles.bannerHeadline}>{banner.headline}</Text>
+            <Text style={styles.bannerSub}>{banner.sub}</Text>
+            {tasks.length > 0 ? (
+              <>
+                <View style={styles.bannerTrack}>
+                  <View style={[styles.bannerFill, { width: `${tasksPercent}%` }]} />
+                </View>
+                <Text style={styles.bannerCount}>
+                  {doneTasks} of {tasks.length} tasks finished
+                </Text>
+              </>
+            ) : null}
+          </View>
+
           {/* Quick Add */}
           <View style={styles.addInputRow}>
             <TextInput
@@ -268,16 +184,16 @@ export default function TasksScreen() {
               style={[styles.addButton, !newTaskTitle.trim() && styles.addButtonDisabled]}
               onPress={handleAddNewTask}
               disabled={!newTaskTitle.trim()}
+              accessibilityLabel="Add task"
             >
               <Ionicons name="add" size={22} color="#1B3C3E" />
             </TouchableOpacity>
           </View>
 
-          {/* Grouped Task List */}
           <FlatList
-            data={tasks}
+            data={sorted}
             keyExtractor={(item) => item.id}
-            renderItem={renderParentTask}
+            renderItem={renderTask}
             contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
           />
@@ -296,11 +212,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle: { fontSize: 26, fontWeight: '700', color: '#3B6B6E' },
   headerSubtitle: { fontSize: 13, color: '#1B3C3E', marginTop: 2, fontWeight: '500' },
   aiBreakdownBtn: {
@@ -314,6 +226,21 @@ const styles = StyleSheet.create({
   },
   aiBreakdownText: { fontSize: 12, fontWeight: '700', color: '#3B4D21' },
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+
+  banner: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#D6E2A3',
+  },
+  bannerHeadline: { fontSize: 16, fontWeight: '700', color: '#2F4F3A' },
+  bannerSub: { fontSize: 13, lineHeight: 19, color: '#556660', marginTop: 4 },
+  bannerTrack: { height: 8, borderRadius: 4, backgroundColor: '#E8EDE3', marginTop: 12, overflow: 'hidden' },
+  bannerFill: { height: '100%', borderRadius: 4, backgroundColor: '#7BAE7F' },
+  bannerCount: { fontSize: 12, fontWeight: '600', color: '#3B6B6E', marginTop: 6 },
+
   addInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -328,22 +255,47 @@ const styles = StyleSheet.create({
   },
   addInput: { flex: 1, height: 40, fontSize: 14, color: '#1A1A1A' },
   addButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#7EC2C6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonDisabled: { opacity: 0.4 },
-  groupCardWrapper: { marginBottom: 14, borderRadius: 18, overflow: 'hidden' },
-  groupCard: {
+
+  cardWrapper: { marginBottom: 12, borderRadius: 18, overflow: 'hidden' },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    overflow: 'hidden',
+    padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },
+  cardDone: { backgroundColor: '#F6F9F2' },
+  accentBar: { width: 5, alignSelf: 'stretch', backgroundColor: '#7EC2C6', borderRadius: 3 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
+  cardTitleDone: { color: '#5F6B66' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  metaText: { fontSize: 12, color: '#6B7671', fontWeight: '500' },
+  doneBadge: { fontSize: 12, fontWeight: '700', color: '#2F5D34' },
+  deadlineChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E6F2F2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  deadlineChipPast: { backgroundColor: '#F6EEDD' },
+  deadlineText: { fontSize: 12, fontWeight: '600', color: '#3B6B6E' },
+  miniTrack: { height: 6, borderRadius: 3, backgroundColor: '#E8EDE3', marginTop: 10, overflow: 'hidden' },
+  miniFill: { height: '100%', borderRadius: 3, backgroundColor: '#7BAE7F' },
+
   deleteActionContainer: {
     backgroundColor: '#E65C5C',
     justifyContent: 'center',
@@ -352,69 +304,4 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginLeft: 8,
   },
-  parentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  parentAccentBar: {
-    width: 5,
-    height: '100%',
-    backgroundColor: '#7EC2C6',
-    borderRadius: 3,
-    marginRight: 12,
-  },
-  parentTitleContainer: { flex: 1 },
-  parentTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
-  stepCounterText: { fontSize: 12, color: '#777777', marginTop: 2, fontWeight: '500' },
-  subStepsList: {
-    backgroundColor: '#F9FAF3',
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.04)',
-  },
-  subStepCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 8,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
-  },
-  subStepCompleted: { opacity: 0.6 },
-  subStepContent: { flex: 1 },
-  subStepText: { fontSize: 14, color: '#222222', lineHeight: 19, fontWeight: '500' },
-  completedText: { textDecorationLine: 'line-through', color: '#888888' },
-  subStepBadgeRow: { marginTop: 4 },
-  stepBadge: { fontSize: 11, fontWeight: '600', color: '#3B6B6E' },
-  subStepCardColumn: { flexDirection: 'column', alignItems: 'stretch', gap: 0 },
-  subStepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  detailsToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    marginLeft: 32,
-    minHeight: 36,
-    alignSelf: 'flex-start',
-    paddingRight: 8,
-  },
-  detailsToggleText: { fontSize: 13, fontWeight: '600', color: '#3B6B6E' },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginLeft: 32,
-    minHeight: 44,
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.04)',
-  },
-  detailText: { flex: 1, fontSize: 13, lineHeight: 18, color: '#2C3E35' },
 });

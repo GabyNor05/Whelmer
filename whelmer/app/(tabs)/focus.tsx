@@ -14,6 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
+import { celebrate } from "../../src/utils/haptics";
+import { cancelNotification, scheduleSessionDone } from "../../src/services/notificationService";
 import { useAudioPlayer } from "expo-audio";
 import { TRACK_LIST, SoundTrack } from "../../src/services/trackService";
 const milo = require('../../assets/milo/Milo-Pleased.png');
@@ -24,6 +26,8 @@ export default function FocusScreen() {
   // Timer & State Management
   const { profile } = useAuth();
   const defaultMinutes = profile?.defaultFocusDuration ?? 25;
+  const hapticsOn = profile?.preferences?.haptics ?? true;
+  const notifyOn = profile?.preferences?.pushNotifications ?? false;
   const params = useLocalSearchParams<{ minutes?: string; start?: string }>();
 
   const [timeLeft, setTimeLeft] = useState(defaultMinutes * 60);
@@ -105,14 +109,42 @@ export default function FocusScreen() {
     let timer: ReturnType<typeof setInterval>;
     if (isRunning && timeLeft > 0) {
       timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
+        // Count down from a fixed end time, so the timer stays right even if the phone sleeps
+        setTimeLeft((prev) =>
+          endAtRef.current ? Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000)) : prev - 1
+        );
       }, 1000);
     } else if (timeLeft === 0) {
+      // Session finished while the app is open: happy buzz (if Haptic Feedback is on)
+      if (isRunning) celebrate(hapticsOn);
       setIsRunning(false);
       setIsPlayingMusic(false);
     }
     return () => clearInterval(timer);
   }, [isRunning, timeLeft]);
+
+  // "Session complete" notification for when the phone is locked or the app is in the background.
+  // Re-scheduled whenever the timer starts, pauses, or the time is adjusted while running.
+  const timeLeftRef = useRef(timeLeft);
+  timeLeftRef.current = timeLeft;
+  const [adjustCount, setAdjustCount] = useState(0);
+  const endAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    endAtRef.current = isRunning ? Date.now() + timeLeftRef.current * 1000 : null;
+  }, [isRunning, adjustCount]);
+  useEffect(() => {
+    if (!isRunning || !notifyOn) return;
+    let id: string | null = null;
+    let cancelled = false;
+    scheduleSessionDone(timeLeftRef.current).then((scheduled) => {
+      if (cancelled) cancelNotification(scheduled);
+      else id = scheduled;
+    });
+    return () => {
+      cancelled = true;
+      cancelNotification(id);
+    };
+  }, [isRunning, adjustCount, notifyOn]);
 
   // Track Selector Switch
   const handleSelectTrack = (track: SoundTrack) => {
@@ -189,6 +221,7 @@ export default function FocusScreen() {
             onPress={() => {
               hasAdjustedTimer.current = true;
               setTimeLeft((t) => Math.max(0, t - 300));
+              setAdjustCount((n) => n + 1);
             }}
           >
             <Text style={styles.adjustText}>-5 Min</Text>
@@ -198,6 +231,7 @@ export default function FocusScreen() {
             onPress={() => {
               hasAdjustedTimer.current = true;
               setTimeLeft((t) => t + 300);
+              setAdjustCount((n) => n + 1);
             }}
           >
             <Text style={styles.adjustText}>+5 Min</Text>

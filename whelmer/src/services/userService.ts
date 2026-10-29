@@ -8,7 +8,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { EmailAuthProvider, deleteUser, reauthenticateWithCredential } from 'firebase/auth';
+import { EmailAuthProvider, deleteUser, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { auth, db } from './firebase';
 import { User, UserPreferences } from '../types/user';
 
@@ -22,7 +22,6 @@ export const createUserProfile = async (
     uid,
     email,
     nickname,
-    avatarUrl: `https://i.pravatar.cc/150?u=${uid}`,
     peakFocusTime: 'morning',
     defaultFocusDuration: 25,
     primaryGoal: 'focus',
@@ -66,7 +65,16 @@ export const updateUserPreferences = async (
   await updateDoc(userRef, updates);
 };
 
-// 5. Permanently delete the signed-in user's data and account.
+// 5. Change password (Firebase needs the current password to confirm it's really them)
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  const current = auth.currentUser;
+  if (!current || !current.email) throw new Error('not-signed-in');
+  const credential = EmailAuthProvider.credential(current.email, currentPassword);
+  await reauthenticateWithCredential(current, credential);
+  await updatePassword(current, newPassword);
+};
+
+// 6. Permanently delete the signed-in user's data and account.
 // Firebase requires a recent login to delete an account, so we re-check the password first.
 // Order: verify password -> delete tasks/chats -> delete profile -> delete the auth account.
 export const deleteUserAccount = async (password: string): Promise<void> => {

@@ -55,11 +55,9 @@ export default function HomeScreen() {
         onPress={() => router.push('/settings')}
         activeOpacity={0.8}
       >
-        {profile?.avatarUrl ? (
-          <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} />
-        ) : (
-          <Ionicons name="person" size={24} color={Colors.textMuted || '#A0A0A0'} />
-        )}
+        <View style={styles.settingsBtn} accessibilityLabel="Settings">
+          <Ionicons name="settings-outline" size={22} color="#3B6B6E" />
+        </View>
       </TouchableOpacity>
         </View>
       </View>
@@ -208,6 +206,14 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: '#D9D9D9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
