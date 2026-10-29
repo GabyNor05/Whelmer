@@ -31,10 +31,12 @@ function RootNavigator() {
       currentSegment === 'onboarding' ||
       currentSegment === 'task';
 
-    if (!user && inAuthGroup) {
-      // User is logged out but on protected main tabs -> redirect to login
+    const onLoginScreen = currentSegment === 'login' || currentSegment === '(auth)';
+
+    if (!user && (inAuthGroup || !currentSegment)) {
+      // Logged out on a protected screen, or on the empty start route -> login
       router.replace('/login');
-    } else if (user && (currentSegment === 'login' || !currentSegment)) {
+    } else if (user && (onLoginScreen || !currentSegment)) {
       // User is logged in and sitting on login or index root -> redirect to main app
       router.replace('/(tabs)');
     }

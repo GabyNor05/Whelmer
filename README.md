@@ -2,37 +2,13 @@
 
 **A gentle AI focus & task companion for ADHD and executive dysfunction**
 
-[![Expo](https://img.shields.io/badge/Expo-SDK_57-000020?style=flat&logo=expo)](https://expo.dev/)
-[![React Native](https://img.shields.io/badge/React_Native-0.86-61DAFB?style=flat&logo=react)](https://reactnative.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-v12-FFCA28?style=flat&logo=firebase)](https://firebase.google.com/)
-[![Groq](https://img.shields.io/badge/AI-Groq-F55036?style=flat)](https://groq.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-7EC2C6.svg)](LICENSE)
+>**Whelmer** is a calm, low-pressure productivity app for people navigating ADHD, burnout and executive dysfunction. Instead of long to-do lists and anxious countdowns, it pairs **AI micro-task breakdown** with an **ambient focus player** and a supportive AI companion named **Milo**.
 
 ![Whelmer overview mockup](docs/mockups/01-overview.png)
 
 **▶️ [Watch the demo video](https://youtube.com/shorts/dbEnwsnVFe0?si=_d1JmCQhX2yzX-G4)**
 
 ---
-
-## 📖 About
-
-**Whelmer** is a calm, low-pressure productivity app for people navigating ADHD, burnout and executive dysfunction. Instead of long to-do lists and anxious countdowns, it pairs **AI micro-task breakdown** with an **ambient focus player** and a supportive AI companion named **Milo**.
-
-| Friction point | How Whelmer helps |
-| :--- | :--- |
-| **Task paralysis** | Milo splits a big, vague goal into small, concrete micro-steps you can save as a task in one tap. |
-| **Time blindness** | A visual focus timer with a spinning vinyl player makes time passing feel tangible. |
-| **Sensory overload** | A soft cream-and-teal palette, no red badges, no aggressive alerts. |
-| **Getting started** | Milo check-ins and prompt chips ("I feel overwhelmed", "Break down my task") remove the blank-page problem. |
-
-> **Student:** Gabrielle Norris · Interactive Development & UX Design · Open Window Institute
-
----
-
-## 🎬 Demo Video
-
-▶️ **[Watch the Whelmer demo](ADD_DEMO_VIDEO_LINK_HERE)**
 
 ---
 
@@ -58,12 +34,16 @@
 
 ## ✨ Features
 
-- 💬 **Milo, your AI companion** — an empathetic, non-judgemental "body double" powered by the **Groq API** (`groq-sdk`, automatically selects an available text model). Replies render as clean Markdown.
-- 📋 **Micro-step task manager** — save Milo's breakdown as a task group, tick off sub-steps and watch progress fill without percentage pressure.
-- 🎧 **Focus sessions & soundscapes** — a vinyl-style player with a configurable focus timer and streamed lo-fi, nature and ambient tracks via `expo-audio`.
-- 🧭 **Personalised onboarding** — nickname, peak focus time, default focus length, main goal and preferences (notifications, autoplay, haptics), saved to Firestore.
-- 🔒 **Secure accounts** — Firebase Authentication with persistent sessions (AsyncStorage) and per-user profile documents in Cloud Firestore.
-- 🔔 **Gentle reminders** — optional local notifications through `expo-notifications`.
+- 💬 **Milo, your AI companion** — an empathetic, non-judgemental "body double" powered by the **Groq API** (`groq-sdk`, automatically selects an available text model). Replies render as clean Markdown (headings, lists, bold), with no stray `**` or `###`.
+- 🧠 **Personalised Milo** — the user's name, main goal (*Task Breakdown*, *Deep Focus* or *Habit Routines*), focus length and peak focus time shape every reply. At their peak time Milo suggests the hardest step first; outside it, lighter steps.
+- 📋 **Micro-step tasks, synced** — save Milo's breakdown in one tap. The task heading comes from what the user asked ("I need to build a rocket" → **Build a Rocket**), and Milo's sub-points nest inside each step as smaller tickable steps, so a 5-step plan stays 5 steps. Everything persists in Firestore across devices.
+- 🗂️ **A screen for every task** — rename the task and any step, add or remove steps and smaller steps, tick things off, and set an **optional deadline** with calm quick choices (Today, Tomorrow, In 3 days, Next week · Morning, Afternoon, Evening, Night).
+- 🗓️ **Milo's gentle time plan** — with a deadline set, Milo suggests when to do each remaining step, using the user's peak focus time, with buffers and breaks and no late nights.
+- 🌱 **Encouraging progress** — a banner celebrates tasks finished and every step ticked off ("2 of 5 tasks finished. Well done! 🌿"), because even small progress deserves recognition.
+- 🎧 **Focus sessions & soundscapes** — a vinyl-style player whose timer starts at the user's chosen focus length. "Start Quick Session" on Home starts it straight away. Two streamed lo-fi tracks plus eight bundled ambient loops that play offline.
+- 🔔 **Gentle reminders (local notifications)** — "Focus session complete", a nudge at the user's peak focus time naming the task due soonest, and soft deadline reminders the day before and a few hours before. Each has action buttons ("Yes, let's go" / "Not now"), quiet hours 21:30–08:00 and a 45-minute minimum gap so they never pile up. No server push, by design.
+- 📳 **Haptic feedback** — a happy double buzz when a task or focus session is finished, controlled by the Settings switch.
+- 🔒 **Account controls** — real profile on Settings, editable focus profile, working log out, **change password** and **delete account** (both re-check the password), plus JSON data export.
 
 ---
 
@@ -75,8 +55,11 @@
 flowchart LR
     U([User]) --> App
     subgraph App[Whelmer - Expo / React Native]
-        R[Expo Router screens<br/>Home, Milo, Tasks, Focus, Settings]
-        C[AuthContext]
+        R[Expo Router screens<br/>Home, Milo, Tasks, Task detail, Focus, Settings]
+        C[AuthContext<br/>user + live profile]
+        H[Hooks<br/>useTasks, useNotifications]
+        R --> H
+        H --> S
         S[Services<br/>ai, taskService, trackService<br/>userService, notificationService]
         R --> C
         R --> S
@@ -84,8 +67,8 @@ flowchart LR
     C --> FA[(Firebase Auth)]
     S --> FS[(Cloud Firestore<br/>users/uid)]
     S --> G[Groq API<br/>Milo responses]
-    S --> CDN[Pixabay audio CDN<br/>soundscapes]
-    S --> N[expo-notifications<br/>local reminders]
+    S --> CDN[Pixabay audio CDN<br/>+ bundled ambient loops]
+    S --> N[expo-notifications<br/>local reminders on device]
 ```
 
 ### User flow
@@ -100,6 +83,7 @@ flowchart TD
     O --> H
     H --> M[Milo Chat] -->|+ Task| T[Tasks]
     H --> T
+    T --> TD[Task screen<br/>edit · deadline · Milo plan]
     H --> F[Focus session]
     H --> ST[Settings]
 ```
@@ -132,7 +116,9 @@ A light-only, neurodivergent-friendly palette chosen to reduce sensory load whil
 | Backend & database | Firebase Authentication · Cloud Firestore |
 | AI service | Groq API (`groq-sdk`) |
 | Audio | `expo-audio` |
-| Other | `expo-notifications`, `react-native-gesture-handler`, `react-native-markdown-display` |
+| Notifications & haptics | `expo-notifications` (local only) · React Native `Vibration` |
+| Build & deploy | EAS Build (`preview` profile → installable Android APK) |
+| Other | `react-native-gesture-handler`, `react-native-reanimated` |
 
 ### Project structure
 
@@ -146,7 +132,8 @@ Whelmer/
     │   ├── _layout.tsx         # Root stack + auth guard
     │   ├── login.tsx           # Sign in / sign up
     │   ├── onboarding.tsx      # Preference setup
-    │   ├── settings.tsx        # Account & app settings
+    │   ├── settings.tsx        # Account, focus profile, reminders, password, delete
+    │   ├── task/[id].tsx       # One task: edit, deadline, Milo's time plan
     │   ├── (auth)/             # Auth group
     │   └── (tabs)/
     │       ├── _layout.tsx     # Bottom tab bar
@@ -155,12 +142,17 @@ Whelmer/
     │       ├── tasks.tsx       # Task groups & micro-steps
     │       └── focus.tsx       # Vinyl player & focus timer
     ├── src/
-    │   ├── context/AuthContext.tsx
+    │   ├── context/AuthContext.tsx   # Signed-in user + live Firestore profile
+    │   ├── hooks/              # useTasks (live tasks + actions), useNotifications
     │   ├── services/           # firebase, ai (Groq), taskService, trackService,
     │   │                       # userService, notificationService
+    │   ├── components/MiloMarkdown.tsx
+    │   ├── utils/              # dates, encouragement, haptics
     │   ├── constants/Colors.ts
     │   └── types/user.ts
-    ├── assets/                 # App icon, splash, Milo mood avatars
+    ├── assets/                 # App icon, splash, Milo avatars, audio loops
+    ├── firestore.rules         # Security rules (paste into the Firebase console)
+    ├── eas.json                # EAS Build profiles (preview = APK)
     ├── app.json
     └── package.json
 ```
@@ -173,7 +165,7 @@ Whelmer is a mobile frontend (Expo) backed by Firebase (auth + database) and the
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 20 or later
+- [Node.js](https://nodejs.org/) 20.19+, 22.13+ or 24.3+
 - [Expo Go](https://expo.dev/go) on your phone, or an Android emulator / iOS simulator
 - A [Firebase project](https://console.firebase.google.com/)
 - A [Groq API key](https://console.groq.com/keys)
@@ -190,20 +182,7 @@ npm install
 
 1. In the [Firebase console](https://console.firebase.google.com/), create a project and add a **Web app** to get your config values.
 2. **Authentication → Sign-in method:** enable **Email/Password**.
-3. **Firestore Database:** create a database, then paste these rules under **Rules** and publish:
-   ```js
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /users/{uid} {
-         allow read, write: if request.auth != null && request.auth.uid == uid;
-       }
-       match /users/{uid}/{document=**} {
-         allow read, write: if request.auth != null && request.auth.uid == uid;
-       }
-     }
-   }
-   ```
+3. **Firestore Database:** create a database, then copy the contents of [`whelmer/firestore.rules`](whelmer/firestore.rules) into **Rules** and publish. The rules only let a signed-in user read or write their own `users/{uid}` branch, and they check the shape of every task document (title length, step count, deadline and Milo plan types).
 
 ### 3. AI service (Groq)
 
@@ -243,26 +222,68 @@ The app has four bottom tabs — **Home, Milo Chat, Tasks, Focus** — plus Sett
 2. **Complete onboarding.** Choose a nickname, peak focus time, default focus length and main goal, then toggle notifications, autoplay and haptics.
 3. **Home.** See Milo's check-in, your current tasks and a shortcut into a focus session.
 4. **Milo Chat.** Tap a prompt chip such as *"Break down my task"*, or type a goal (e.g. *"I need to clean my room"*). Milo replies with small steps — tap **+ Task** under the reply to save them as a task group.
-5. **Tasks.** Expand a task to see its micro-steps and tick each one as you go; the progress bar fills as you move through them.
-6. **Focus.** Pick a soundscape, set the timer and press play. The vinyl spins while the session runs.
-7. **Settings.** Tap the profile icon on Home to edit your profile and preferences, or log out.
+5. **Tasks.** The banner at the top celebrates your progress. Tap a task to open its own screen: tick steps and smaller steps, rename or remove anything, add new steps, and set an optional deadline. With a deadline, tap **Suggest times for my steps** for Milo's gentle plan. Swipe left on a task in the list to delete it.
+6. **Focus.** Pick a soundscape and press play; the timer starts at your default focus length. The vinyl spins while the session runs, and you get a gentle buzz and notification when it ends.
+7. **Settings.** Tap the settings icon on Home. Change your name or password, adjust your focus profile (focus length, peak time, main goal), switch Gentle Reminders and haptics on or off, export your data, log out, or permanently delete your account.
 
-> **Quick test path:** Sign up → Onboarding → Milo: *"Break down: write my essay"* → tap **+ Task** → Tasks: tick a step → Focus: start a session.
+> **Quick test path:** Sign up → Onboarding → Milo: *"I need to build a rocket"* → tap **+ Task** → Tasks: open **Build a Rocket**, tick a smaller step, add a deadline, tap **Suggest times for my steps** → Focus: start a session.
+
+### Notifications in Expo Go vs the APK
+
+Since Expo SDK 53, Expo Go can't load `expo-notifications` without errors, so Whelmer switches all notification code off when it detects Expo Go. Everything else works in Expo Go. Reminders work in the installed APK: open **Settings → Gentle Reminders**, switch it on and allow notifications.
 
 ---
 
 ## 🔒 Security & Privacy
 
-- Each user's profile lives at `users/{uid}` in Firestore, protected by rules tied to `request.auth.uid`.
-- API keys are loaded from environment variables, not hard-coded.
+- Each user's profile and tasks live under `users/{uid}` in Firestore, protected by rules tied to `request.auth.uid`; task writes are also validated by the rules.
+- Changing the password or deleting the account re-checks the current password (`reauthenticateWithCredential`). Deleting removes every task, the profile and the login.
+- API keys are loaded from environment variables, not hard-coded, and `.env` is kept out of Git.
+- **Known limit:** `EXPO_PUBLIC_` keys are bundled into the app, so the Groq key could be extracted from the APK. The production fix is to move AI calls behind a Firebase Cloud Function.
 - Milo's system prompt keeps responses focused on supportive productivity coaching.
+
+---
+
+## 📦 Android APK (EAS Build)
+
+Whelmer builds as a standalone Android app with [EAS Build](https://docs.expo.dev/build/setup/), so it runs without Expo Go and supports local notifications.
+
+```bash
+npm install -g eas-cli
+eas login
+cd whelmer
+eas build -p android --profile preview
+```
+
+- **`eas.json`** defines a `preview` profile that outputs an installable `.apk` (internal distribution).
+- **`.easignore`** (repo root) replaces `.gitignore` for EAS uploads, so `.env` is included in the build while `node_modules` and generated native folders are not.
+- When the build finishes, open the link or QR code on an Android phone, download the APK and allow installing from that source.
+
+**Problems fixed on the way to a working build:**
+
+| Problem | Fix |
+| :--- | :--- |
+| `expo-doctor`: invalid `scheme` | Changed `"Whelmer"` to lowercase `"whelmer"` |
+| Missing `expo-font` peer dependency | `npx expo install expo-font` (icons can crash outside Expo Go without it) |
+| Top-level `splash` removed in SDK 57 | Moved the splash settings into the `expo-splash-screen` plugin |
+| `npm ci`: *Missing react-native-worklets@0.10.4 from lock file* | npm had pulled in a newer Reanimated (4.7.1) than SDK 57 supports; pinned `react-native-reanimated` 4.5.1 and `react-native-worklets` 0.10.1 with `npx expo install` |
+| Unused `expo-av` | Removed, as it is no longer supported on SDK 57 |
+| APK built and installed, but showed a **blank screen** after the splash | `app/index.tsx` (the start route) rendered nothing. Expo Go always had a logged-in user, so it skipped straight past it; a fresh install did not. The start route now redirects to login or Home, and the root layout sends logged-out users there too |
 
 ---
 
 ## 🧭 Roadmap
 
-- [ ] Persist tasks and micro-steps to Firestore (`users/{uid}/tasks`) — currently held in memory per session
-- [ ] Standalone Android APK via EAS Build
+- [x] Persist tasks and micro-steps to Firestore (`users/{uid}/tasks`)
+- [x] Task screen with editing, optional deadlines and Milo's time plan
+- [x] Local reminders with action buttons, and haptic feedback
+- [x] Standalone Android APK via EAS Build
+- [ ] Move Groq calls behind a Firebase Cloud Function so the key never ships in the app
+- [ ] Optional server push, off by default
+- [ ] Studio-recorded soundscapes to replace the generated ambient loops
+- [ ] A one-colour notification icon
+- [ ] Save Milo chat history to Firestore
+- [ ] Automated tests for step parsing, reminder planning and CRUD
 - [ ] Shared theme tokens file for all colours
 - [ ] Notebook / daily journal (backlog)
 
@@ -280,7 +301,7 @@ The app has four bottom tabs — **Home, Milo Chat, Tasks, Focus** — plus Sett
 
 AI tools supported development but are credited as tools, not as contributors:
 
-- **Claude (Anthropic)** — code review, debugging support and documentation drafting
+- **Claude (Anthropic)** — generated and debugged code for features including Firestore task sync, Milo's Markdown rendering, the task screen with deadlines and time plans, local reminders, haptics and the Settings account controls; diagnosed and fixed the EAS build issues; drafted documentation
 - **Google Gemini** — development assistance during early prototyping
 
 ---
@@ -291,7 +312,8 @@ AI tools supported development but are credited as tools, not as contributors:
 - **React Native documentation** — [reactnative.dev](https://reactnative.dev/)
 - **Firebase documentation** (Auth & Firestore) — [firebase.google.com/docs](https://firebase.google.com/docs)
 - **Groq API & `groq-sdk`** — [console.groq.com/docs](https://console.groq.com/docs)
-- **Ambient soundscapes** — royalty-free tracks from [Pixabay](https://pixabay.com/music/), used under the Pixabay Content License
+- **Ambient soundscapes** — two streamed royalty-free tracks from [Pixabay](https://pixabay.com/music/), used under the Pixabay Content License; eight ambient loops generated for the project and bundled in `assets/audio`
+- **EAS Build** — [docs.expo.dev/build](https://docs.expo.dev/build/setup/)
 - **Logo & Milo illustrations** — Kaylin Oosterhuizen
 - **Icons** — [`@expo/vector-icons`](https://icons.expo.fyi/)
 - **Libraries** — React Native Paper, react-native-markdown-display, react-native-gesture-handler
