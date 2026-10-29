@@ -53,6 +53,13 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "692cc00c-a2b2-4165-ac02-5db1e95424b4"
+      }
+    },
+    "owner": "gabynor"
   }
 }
