@@ -2,16 +2,11 @@
   "expo": {
     "name": "Whelmer",
     "slug": "Whelmer",
-    "scheme": "Whelmer",
+    "scheme": "whelmer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#EFF2E4"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.whelmer.app"
@@ -41,14 +36,23 @@
       "expo-status-bar",
       "expo-audio",
       "expo-sharing",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#EFF2E4",
+          "imageWidth": 200
+        }
+      ],
       "expo-asset",
       [
         "expo-notifications",
         {
           "color": "#7EC2C6"
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }
