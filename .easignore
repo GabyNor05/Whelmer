@@ -1,0 +1,40 @@
+# EAS reads this file INSTEAD of .gitignore when it uploads the project for a build.
+# These are the same rules as whelmer/.gitignore, with one difference:
+# .env IS uploaded, so the APK gets the EXPO_PUBLIC_ Firebase and Groq keys.
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native secrets / build files
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Metro / logs / OS
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.tsbuildinfo
+
+# local env overrides
+.env*.local
+
+# Generated native folders: EAS regenerates these from app.json
+/whelmer/android
+/whelmer/ios
+
+# Not needed to build the app
+/docs

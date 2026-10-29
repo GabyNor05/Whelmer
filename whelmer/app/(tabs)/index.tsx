@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useRouter, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { useTasks } from '../../src/hooks/useTasks';
+import { useAuth } from '../../src/context/AuthContext';
 const milo = require('../../assets/milo/Milo-Inquisitive.png');
 
 export default function HomeScreen() {
@@ -21,7 +22,15 @@ export default function HomeScreen() {
 
   // Task & Timer State
   const { tasks, toggleTaskCompleted } = useTasks();
-  const [timerMinutes, setTimerMinutes] = useState(25);
+  const { profile } = useAuth();
+  const defaultMinutes = profile?.defaultFocusDuration ?? 25;
+  const [timerMinutes, setTimerMinutes] = useState(defaultMinutes);
+
+  // Use the focus length chosen in onboarding/Settings until the user adjusts it here
+  const hasAdjustedTimer = useRef(false);
+  useEffect(() => {
+    if (!hasAdjustedTimer.current) setTimerMinutes(defaultMinutes);
+  }, [defaultMinutes]);
   const [selectedTrack, setSelectedTrack] = useState('Lofi Track 1');
 
   const pendingTasks = tasks.filter((t) => !t.completed);
@@ -32,6 +41,7 @@ export default function HomeScreen() {
   };
 
   const adjustTimer = (delta: number) => {
+    hasAdjustedTimer.current = true;
     setTimerMinutes((prev) => Math.max(5, Math.min(60, prev + delta)));
   };
 
@@ -40,15 +50,16 @@ export default function HomeScreen() {
       {/* 1. Curved Teal Top Header */}
       <View style={[styles.topHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerRow}>
-          <Text style={styles.welcomeText}>Welcome, Liya</Text>
+          <Text style={styles.welcomeText}>Welcome, {profile?.nickname || 'friend'}</Text>
           <TouchableOpacity
         onPress={() => router.push('/settings')}
         activeOpacity={0.8}
       >
-        {/* TODO: Avatar 
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
-        */}
-        <Ionicons name="person" size={24} color={Colors.textMuted || '#A0A0A0'} />
+        {profile?.avatarUrl ? (
+          <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} />
+        ) : (
+          <Ionicons name="person" size={24} color={Colors.textMuted || '#A0A0A0'} />
+        )}
       </TouchableOpacity>
         </View>
       </View>
@@ -100,7 +111,12 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={styles.startSessionBtn}
-              onPress={() => router.push('/(tabs)/focus')}
+              onPress={() =>
+                router.push({
+                  pathname: '/(tabs)/focus',
+                  params: { minutes: String(timerMinutes), start: String(Date.now()) },
+                })
+              }
             >
               <Text style={styles.startSessionText}>Start Quick Session</Text>
             </TouchableOpacity>

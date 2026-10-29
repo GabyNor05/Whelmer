@@ -23,7 +23,8 @@ function RootNavigator() {
 
     // Check current active segment route safely
     const currentSegment = segments[0] as string | undefined;
-    const inAuthGroup = currentSegment === '(tabs)';
+    const inAuthGroup =
+      currentSegment === '(tabs)' || currentSegment === 'settings' || currentSegment === 'onboarding';
 
     if (!user && inAuthGroup) {
       // User is logged out but on protected main tabs -> redirect to login

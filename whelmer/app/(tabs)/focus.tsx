@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
+import { useAuth } from "../../src/context/AuthContext";
 import { useAudioPlayer } from "expo-audio";
 import { TRACK_LIST, SoundTrack } from "../../src/services/trackService";
 const milo = require('../../assets/milo/Milo-Pleased.png');
@@ -20,8 +22,28 @@ export default function FocusScreen() {
   const insets = useSafeAreaInsets();
 
   // Timer & State Management
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const { profile } = useAuth();
+  const defaultMinutes = profile?.defaultFocusDuration ?? 25;
+  const params = useLocalSearchParams<{ minutes?: string; start?: string }>();
+
+  const [timeLeft, setTimeLeft] = useState(defaultMinutes * 60);
   const [isRunning, setIsRunning] = useState(false);
+
+  // Follow the user's default focus length until they adjust the timer
+  const hasAdjustedTimer = useRef(false);
+  useEffect(() => {
+    if (!hasAdjustedTimer.current && !isRunning) setTimeLeft(defaultMinutes * 60);
+  }, [defaultMinutes]);
+
+  // "Start Quick Session" on Home sends its minutes here and starts straight away
+  useEffect(() => {
+    const minutes = Number(params.minutes);
+    if (!params.start || !(minutes > 0)) return;
+    hasAdjustedTimer.current = true;
+    setTimeLeft(minutes * 60);
+    setIsRunning(true);
+    setIsPlayingMusic(true);
+  }, [params.start]);
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<SoundTrack>(TRACK_LIST[0]);
   const [isPickerVisible, setIsPickerVisible] = useState(false);
@@ -164,13 +186,19 @@ export default function FocusScreen() {
         <View style={styles.adjustRow}>
           <TouchableOpacity
             style={styles.adjustPill}
-            onPress={() => setTimeLeft((t) => Math.max(0, t - 300))}
+            onPress={() => {
+              hasAdjustedTimer.current = true;
+              setTimeLeft((t) => Math.max(0, t - 300));
+            }}
           >
             <Text style={styles.adjustText}>-5 Min</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.adjustPill}
-            onPress={() => setTimeLeft((t) => t + 300)}
+            onPress={() => {
+              hasAdjustedTimer.current = true;
+              setTimeLeft((t) => t + 300);
+            }}
           >
             <Text style={styles.adjustText}>+5 Min</Text>
           </TouchableOpacity>
@@ -183,7 +211,8 @@ export default function FocusScreen() {
             onPress={() => {
               setIsRunning(false);
               setIsPlayingMusic(false);
-              setTimeLeft(25 * 60);
+              hasAdjustedTimer.current = false;
+              setTimeLeft(defaultMinutes * 60);
             }}
           >
             <Ionicons name="refresh" size={24} color="#3B6B6E" />

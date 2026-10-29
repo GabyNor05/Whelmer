@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { askMilo } from '../../src/services/ai';
 import { useTasks } from '../../src/hooks/useTasks';
+import { useAuth } from '../../src/context/AuthContext';
 const milo = require('../../assets/milo/chatAvatar.png');
 
 interface Message {
@@ -123,6 +124,7 @@ const FormattedMiloText = ({ text }: { text: string }) => {
 export default function MiloChatScreen() {
   const insets = useSafeAreaInsets();
   const { saveMiloResponse } = useTasks();
+  const { profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -151,7 +153,7 @@ export default function MiloChatScreen() {
     setIsLoading(true);
 
     try {
-      const responseText = await askMilo(query);
+      const responseText = await askMilo(query, profile);
       const isActionable = /\d+\.\s/.test(responseText);
 
       const miloMessage: Message = {

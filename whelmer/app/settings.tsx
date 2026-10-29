@@ -10,19 +10,40 @@ import {
   Switch,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { requestNotificationPermission } from '../src/services/notificationService';
+import { useAuth } from '../src/context/AuthContext';
+import { useTasks } from '../src/hooks/useTasks';
+import {
+  deleteUserAccount,
+  updateUserPreferences,
+  updateUserProfile,
+} from '../src/services/userService';
+import type { User as UserProfile, UserPreferences } from '../src/types/user';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
-// Keys for persistence
-const STORAGE_KEYS = {
-  USER: '@whelmer_user_data',
-  SETTINGS: '@whelmer_app_settings',
+// Old on-device keys from before Firestore sync, cleared when an account is deleted
+const LEGACY_STORAGE_KEYS = ['@whelmer_user_data', '@whelmer_app_settings'];
+
+const FOCUS_DURATIONS = [15, 25, 45] as const;
+const PEAK_TIMES = ['morning', 'afternoon', 'evening', 'night', 'random'] as const;
+const GOALS = ['breakdown', 'focus', 'routines'] as const;
+const PEAK_LABELS: Record<UserProfile['peakFocusTime'], string> = {
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+  night: 'Night Owl',
+  random: 'Random',
+};
+const GOAL_LABELS: Record<UserProfile['primaryGoal'], string> = {
+  breakdown: 'Task Breakdown',
+  focus: 'Deep Focus Sessions',
+  routines: 'Habit Routines',
 };
 
 // Help Center Items
@@ -62,9 +83,9 @@ const PRIVACY_ITEMS = [
   {
     id: '1',
     icon: 'phone-portrait-outline',
-    title: 'Local Storage First',
+    title: 'Private to Your Account',
     description:
-      'Your tasks, sub-tasks, and focus stats stay saved directly on your device. We do not sell or store your personal productivity data on central servers.',
+      'Your tasks and preferences sync securely to your own Whelmer account, so they follow you across devices. Only you can read them, and we never sell your data.',
   },
   {
     id: '2',
@@ -83,136 +104,98 @@ const PRIVACY_ITEMS = [
   {
     id: '4',
     icon: 'trash-outline',
-    title: 'Data Control & Reset',
+    title: 'Delete Anytime',
     description:
-      'Logging out or clearing app storage instantly purges all cached preferences from your device.',
+      'You can permanently delete your account and every task, step and preference linked to it, straight from this screen.',
   },
 ];
 
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user: authUser, profile, logout } = useAuth();
+  const { tasks } = useTasks();
 
-  // User State
-  const [user, setUser] = useState({
-    name: 'Alex Johnson',
-    email: 'alex.johnson@example.com',
-    avatarUrl: 'https://i.pravatar.cc/150?img=12',
-  });
+  // Real account details from Firebase Auth + the Firestore profile
+  const user = {
+    name: profile?.nickname || authUser?.displayName || 'Whelmer user',
+    email: profile?.email || authUser?.email || '',
+    avatarUrl: profile?.avatarUrl,
+  };
 
-  // Settings Toggles
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [focusAudioAutoplay, setFocusAudioAutoplay] = useState(false);
-  const [hapticFeedback, setHapticFeedback] = useState(true);
+  // Settings toggles live in Firestore at users/{uid}.preferences
+  const pushNotifications = profile?.preferences?.pushNotifications ?? true;
+  const focusAudioAutoplay = profile?.preferences?.autoPlay ?? false;
+  const hapticFeedback = profile?.preferences?.haptics ?? true;
 
   // Modal Visibility States
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isHelpModalVisible, setIsHelpModalVisible] = useState(false);
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
-  // Edit Form Fields
+  // Form Fields
   const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // 1. Load Saved Preferences & User Profile on Mount
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const savedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      }
-
-      const savedSettings = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        setPushNotifications(parsed.pushNotifications ?? true);
-        setFocusAudioAutoplay(parsed.focusAudioAutoplay ?? false);
-        setHapticFeedback(parsed.hapticFeedback ?? true);
-      }
-    } catch (e) {
-      console.error('Failed to load settings from storage:', e);
-    }
+  const savePreference = (key: keyof UserPreferences, value: boolean) => {
+    if (!authUser) return;
+    updateUserPreferences(authUser.uid, { [key]: value }).catch(() =>
+      Alert.alert('Error', 'Could not save that setting. Check your connection and try again.')
+    );
   };
 
-  // 2. Persist Settings Changes Automatically
-  const saveSettingToggle = async (key: string, value: boolean) => {
-    try {
-      const current = {
-        pushNotifications,
-        focusAudioAutoplay,
-        hapticFeedback,
-        [key]: value,
-      };
-      await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(current));
-    } catch (e) {
-      console.error('Failed to save setting:', e);
-    }
+  const handleToggleNotifications = (val: boolean) => savePreference('pushNotifications', val);
+  const handleToggleAutoplay = (val: boolean) => savePreference('autoPlay', val);
+  const handleToggleHaptics = (val: boolean) => savePreference('haptics', val);
+
+  // Focus profile from onboarding, tap a row to cycle to the next option
+  const cycle = <T,>(options: readonly T[], current: T | undefined): T => {
+    const i = current === undefined ? -1 : options.indexOf(current);
+    return options[(i + 1) % options.length];
+  };
+  const updateFocusProfile = (updates: Partial<UserProfile>) => {
+    if (!authUser) return;
+    updateUserProfile(authUser.uid, updates).catch(() =>
+      Alert.alert('Error', 'Could not save that change. Check your connection and try again.')
+    );
   };
 
-  const handleToggleNotifications = (val: boolean) => {
-    setPushNotifications(val);
-    saveSettingToggle('pushNotifications', val);
-  };
-
-  const handleToggleAutoplay = (val: boolean) => {
-    setFocusAudioAutoplay(val);
-    saveSettingToggle('focusAudioAutoplay', val);
-  };
-
-  const handleToggleHaptics = (val: boolean) => {
-    setHapticFeedback(val);
-    saveSettingToggle('hapticFeedback', val);
-  };
-
-  // 3. Save Updated Profile to Storage
+  // Save updated nickname to Firestore
   const handleSaveProfile = async () => {
-    if (!editName.trim()) {
+    const nickname = editName.trim();
+    if (!nickname) {
       Alert.alert('Error', 'Name cannot be empty.');
       return;
     }
-    const updatedUser = {
-      ...user,
-      name: editName.trim(),
-      email: editEmail.trim(),
-    };
+    if (!authUser) return;
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
-      setUser(updatedUser);
+      await updateUserProfile(authUser.uid, { nickname });
       setIsEditModalVisible(false);
     } catch (e) {
       Alert.alert('Error', 'Could not save profile changes.');
     }
   };
 
-  // 4. Export JSON Data (Write JSON file & Trigger Native Share)
+  // Export the user's real data as JSON and open the share sheet
   const handleExportData = async () => {
     try {
-      // Gather current app state / storage payload
       const exportPayload = {
         app: 'Whelmer',
         version: '1.0.0',
         exportedAt: new Date().toISOString(),
-        user,
-        settings: {
-          pushNotifications,
-          focusAudioAutoplay,
-          hapticFeedback,
-        },
+        profile,
+        tasks,
       };
 
       const jsonString = JSON.stringify(exportPayload, null, 2);
       const filePath = `${FileSystem.documentDirectory}whelmer_backup.json`;
 
-      // Write file to device storage
       await FileSystem.writeAsStringAsync(filePath, jsonString, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
-      // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
         await Sharing.shareAsync(filePath, {
@@ -229,36 +212,41 @@ export default function SettingsScreen() {
     }
   };
 
-  // 5. Reset Storage Data
-  const handleClearData = () => {
-    Alert.alert(
-      'Clear All Local Data?',
-      'This will erase all local tasks, preferences, and cached profile data from this device.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Erase Everything',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.SETTINGS]);
-              setUser({
-                name: 'Alex Johnson',
-                email: 'alex.johnson@example.com',
-                avatarUrl: 'https://i.pravatar.cc/150?img=12',
-              });
-              setPushNotifications(true);
-              setFocusAudioAutoplay(false);
-              setHapticFeedback(true);
-              setIsPrivacyModalVisible(false);
-              Alert.alert('Reset Complete', 'Local application storage has been cleared.');
-            } catch (e) {
-              Alert.alert('Error', 'Failed to clear local data.');
-            }
-          },
-        },
-      ]
-    );
+  // Leave the signed-in screens completely, so nothing from this account stays mounted
+  const goToLogin = () => {
+    if (router.canDismiss()) router.dismissAll();
+    router.replace('/login');
+  };
+
+  // Permanently delete account + data (password confirms it's really them)
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      Alert.alert('Password needed', 'Enter your password to confirm.');
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await deleteUserAccount(deletePassword);
+      await AsyncStorage.multiRemove(LEGACY_STORAGE_KEYS).catch(() => {});
+      setIsDeleteModalVisible(false);
+      setIsPrivacyModalVisible(false);
+      setDeletePassword('');
+      goToLogin();
+      Alert.alert('Account deleted', 'Your Whelmer account and all of its data have been removed.');
+    } catch (e: any) {
+      const code = e?.code ?? '';
+      const message =
+        code === 'auth/wrong-password' || code === 'auth/invalid-credential'
+          ? 'That password is incorrect.'
+          : code === 'auth/too-many-requests'
+          ? 'Too many attempts. Please wait a moment and try again.'
+          : code === 'auth/network-request-failed'
+          ? 'No connection. Please check your internet and try again.'
+          : 'Something went wrong while deleting your account. Please try again.';
+      Alert.alert('Could not delete account', message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Logout Handler
@@ -268,7 +256,14 @@ export default function SettingsScreen() {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => router.replace('/login'),
+        onPress: async () => {
+          try {
+            await logout();
+            goToLogin();
+          } catch (e) {
+            Alert.alert('Error', 'Could not log out. Please try again.');
+          }
+        },
       },
     ]);
   };
@@ -289,7 +284,13 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* User Profile Card */}
         <View style={styles.profileCard}>
-          <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+          {user.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Ionicons name="person" size={36} color="#3B6B6E" />
+            </View>
+          )}
           <Text style={styles.userName}>{user.name}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
 
@@ -297,12 +298,66 @@ export default function SettingsScreen() {
             style={styles.editProfileBtn}
             onPress={() => {
               setEditName(user.name);
-              setEditEmail(user.email);
               setIsEditModalVisible(true);
             }}
           >
             <Ionicons name="pencil-sharp" size={14} color="#3B4D21" />
             <Text style={styles.editProfileText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Section: Focus Profile (from onboarding) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Focus Profile</Text>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() =>
+              updateFocusProfile({
+                defaultFocusDuration: cycle(FOCUS_DURATIONS, profile?.defaultFocusDuration as any),
+              })
+            }
+          >
+            <View style={styles.settingIconContainer}>
+              <Ionicons name="timer-outline" size={20} color="#3B6B6E" />
+            </View>
+            <View style={styles.settingTextGroup}>
+              <Text style={styles.settingTitle}>Default Focus Length</Text>
+              <Text style={styles.settingSubtitle}>Tap to change</Text>
+            </View>
+            <Text style={styles.settingValue}>{profile?.defaultFocusDuration ?? 25} min</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => updateFocusProfile({ peakFocusTime: cycle(PEAK_TIMES, profile?.peakFocusTime) })}
+          >
+            <View style={styles.settingIconContainer}>
+              <Ionicons name="sunny-outline" size={20} color="#3B6B6E" />
+            </View>
+            <View style={styles.settingTextGroup}>
+              <Text style={styles.settingTitle}>Peak Focus Time</Text>
+              <Text style={styles.settingSubtitle}>Milo plans around this</Text>
+            </View>
+            <Text style={styles.settingValue}>
+              {profile?.peakFocusTime ? PEAK_LABELS[profile.peakFocusTime] : '—'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => updateFocusProfile({ primaryGoal: cycle(GOALS, profile?.primaryGoal) })}
+          >
+            <View style={styles.settingIconContainer}>
+              <Ionicons name="flag-outline" size={20} color="#3B6B6E" />
+            </View>
+            <View style={styles.settingTextGroup}>
+              <Text style={styles.settingTitle}>Main Goal</Text>
+              <Text style={styles.settingSubtitle}>Shapes how Milo helps you</Text>
+            </View>
+            <Text style={styles.settingValue}>
+              {profile?.primaryGoal ? GOAL_LABELS[profile.primaryGoal] : '—'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -415,13 +470,9 @@ export default function SettingsScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Email</Text>
               <TextInput
-                style={styles.textInput}
-                value={editEmail}
-                onChangeText={setEditEmail}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor="#999999"
+                style={[styles.textInput, styles.textInputDisabled]}
+                value={user.email}
+                editable={false}
               />
             </View>
 
@@ -512,12 +563,66 @@ export default function SettingsScreen() {
                   <Text style={styles.exportBtnText}>Export JSON Data</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.clearDataBtn} onPress={handleClearData}>
+                <TouchableOpacity
+                  style={styles.clearDataBtn}
+                  onPress={() => {
+                    setDeletePassword('');
+                    // Close the privacy sheet first so the two modals don't stack
+                    setIsPrivacyModalVisible(false);
+                    setTimeout(() => setIsDeleteModalVisible(true), 350);
+                  }}
+                >
                   <Ionicons name="trash-outline" size={16} color="#E65C5C" />
-                  <Text style={styles.clearDataText}>Reset App Storage</Text>
+                  <Text style={styles.clearDataText}>Delete My Account</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Account Confirmation */}
+      <Modal visible={isDeleteModalVisible} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delete your account?</Text>
+            <Text style={styles.deleteWarning}>
+              This permanently deletes your Whelmer account and all of your tasks, steps and
+              preferences. This can't be undone. Enter your password to confirm.
+            </Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.textInput}
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                placeholder="Your password"
+                placeholderTextColor="#999999"
+                secureTextEntry
+                autoCapitalize="none"
+                editable={!isDeleting}
+              />
+            </View>
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setIsDeleteModalVisible(false)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, styles.deleteConfirmBtn, isDeleting && { opacity: 0.6 }]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.modalSaveText, { color: '#FFFFFF' }]}>Delete Forever</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -566,6 +671,7 @@ const styles = StyleSheet.create({
     borderColor: '#7EC2C6',
     marginBottom: 10,
   },
+  avatarFallback: { backgroundColor: '#E6F2F2', alignItems: 'center', justifyContent: 'center' },
   userName: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
   userEmail: { fontSize: 13, color: '#777777', marginTop: 2 },
   editProfileBtn: {
@@ -667,6 +773,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   modalSaveText: { fontSize: 14, fontWeight: '700', color: '#1B3C3E' },
+  textInputDisabled: { color: '#777777' },
+  deleteWarning: { fontSize: 14, lineHeight: 20, color: '#444444', marginBottom: 14 },
+  deleteConfirmBtn: { backgroundColor: '#D64545', minWidth: 130, alignItems: 'center' },
+  settingValue: { fontSize: 13, fontWeight: '700', color: '#3B6B6E', marginLeft: 8 },
 
   // Bottom Sheets
   sheetModalOverlay: {

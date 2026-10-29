@@ -1,4 +1,5 @@
 import Groq from 'groq-sdk';
+import type { User as UserProfile } from '../types/user';
 
 const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 
@@ -16,7 +17,70 @@ You are Milo, an empathetic, calm, and supportive AI companion for an ADHD task 
 Your primary job is to help users process task paralysis and overwhelm. 
 Speak in a warm, concise, and non-judgmental tone. Never sound pushy or overly clinical.
 When asked to break down a task, break it into 3 to 5 bite-sized, low-friction micro-steps.
+Format breakdowns as a numbered list (1., 2., 3.). If a step needs smaller actions, put them as
+indented "-" bullets under that step, at most 3 per step. Keep step titles short.
 `;
+
+// ---------------------------------------------------------------------------
+// Personalisation from the user's onboarding choices (users/{uid})
+// ---------------------------------------------------------------------------
+
+const GOAL_GUIDANCE: Record<UserProfile['primaryGoal'], string> = {
+  breakdown:
+    'Their main goal is TASK BREAKDOWN. Whenever they mention something to do, offer a short numbered micro-step plan by default. Make step 1 something they can start in under 2 minutes.',
+  focus:
+    'Their main goal is DEEP FOCUS SESSIONS. Keep plans to 3 steps and frame the work around one focus session. Suggest starting a timer in the Focus Zone and protecting that time from distractions.',
+  routines:
+    'Their main goal is HABIT ROUTINES. Frame plans as small repeatable routines they can do daily, suggest a consistent time and a cue to anchor the habit, and celebrate consistency over perfection.',
+};
+
+const PEAK_LABEL: Record<UserProfile['peakFocusTime'], string> = {
+  morning: 'the morning',
+  afternoon: 'the afternoon',
+  evening: 'the evening',
+  night: 'late at night',
+  random: 'unpredictable times',
+};
+
+const currentPeriod = (): UserProfile['peakFocusTime'] => {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 21) return 'evening';
+  return 'night';
+};
+
+const buildPersonalContext = (profile?: Partial<UserProfile> | null): string => {
+  if (!profile) return '';
+  const lines: string[] = ['About this user (use it naturally, never recite it back):'];
+
+  if (profile.nickname) lines.push(`- Their name is ${profile.nickname}. Use it occasionally, not in every message.`);
+
+  if (profile.primaryGoal && GOAL_GUIDANCE[profile.primaryGoal]) {
+    lines.push(`- ${GOAL_GUIDANCE[profile.primaryGoal]}`);
+  }
+
+  if (profile.defaultFocusDuration) {
+    lines.push(
+      `- Their preferred focus session is ${profile.defaultFocusDuration} minutes. Size steps so the first one or two fit inside one session.`
+    );
+  }
+
+  if (profile.peakFocusTime) {
+    const now = currentPeriod();
+    if (profile.peakFocusTime === 'random') {
+      lines.push('- Their focus comes at unpredictable times, so help them catch a good moment when it shows up rather than planning rigid schedules.');
+    } else if (profile.peakFocusTime === now) {
+      lines.push(`- They focus best in ${PEAK_LABEL[profile.peakFocusTime]}, and it is that time now. Encourage tackling the hardest step first.`);
+    } else {
+      lines.push(
+        `- They focus best in ${PEAK_LABEL[profile.peakFocusTime]}, but it is currently ${PEAK_LABEL[now]}. Suggest lighter, low-effort steps now and saving the most demanding step for their peak time.`
+      );
+    }
+  }
+
+  return lines.length > 1 ? '\n' + lines.join('\n') : '';
+};
 
 // Preferred default model priorities
 const PREFERRED_MODELS = [
@@ -50,13 +114,16 @@ async function getAvailableModel(): Promise<string> {
   return 'llama-3.3-70b-versatile';
 }
 
-export async function askMilo(userPrompt: string): Promise<string> {
+export async function askMilo(
+  userPrompt: string,
+  profile?: Partial<UserProfile> | null
+): Promise<string> {
   try {
     const activeModel = await getAvailableModel();
 
     const completion = await groq.chat.completions.create({
       messages: [
-        { role: 'system', content: MILO_SYSTEM_INSTRUCTION },
+        { role: 'system', content: MILO_SYSTEM_INSTRUCTION + buildPersonalContext(profile) },
         { role: 'user', content: userPrompt },
       ],
       model: activeModel,

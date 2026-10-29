@@ -9,7 +9,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 
 
 export interface StepDetail {
@@ -91,6 +91,8 @@ export const subscribeToTasks = (
     query(tasksCol(uid), orderBy('createdAt', 'desc')),
     (snap) => onChange(snap.docs.map((d) => toTaskItem(d.id, d.data() as Partial<TaskDoc>))),
     (err) => {
+      // permission-denied is expected for a moment while signing out
+      if (!auth.currentUser) return;
       console.warn('[taskService] subscription error:', err);
       onError?.(err);
     }
