@@ -13,4 +13,6 @@ export interface User {
   defaultFocusDuration: number; // In minutes (e.g., 15, 25, 45)
   primaryGoal: 'breakdown' | 'focus' | 'routines';
   preferences: UserPreferences;
+  // When the user accepted the "Milo can be wrong / not medical advice" notice (ms since epoch)
+  aiDisclaimerAcceptedAt?: number;
 }

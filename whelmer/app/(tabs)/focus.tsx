@@ -49,6 +49,8 @@ export default function FocusScreen() {
     setIsPlayingMusic(true);
   }, [params.start]);
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  // Mute is separate from play/pause: the timer and record keep going, the sound goes silent
+  const [isMuted, setIsMuted] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<SoundTrack>(TRACK_LIST[0]);
   const [isPickerVisible, setIsPickerVisible] = useState(false);
 
@@ -70,6 +72,13 @@ export default function FocusScreen() {
       player.pause();
     }
   }, [isRunning, isPlayingMusic, player]);
+
+  // Apply mute to the current player (and to a new one when the track changes)
+  useEffect(() => {
+    if (!player) return;
+    player.muted = isMuted;
+    player.volume = isMuted ? 0 : 1;
+  }, [isMuted, player]);
 
   // Handle Record & Tonearm Animations
   useEffect(() => {
@@ -268,12 +277,13 @@ export default function FocusScreen() {
 
           <TouchableOpacity
             style={styles.iconBtnSecondary}
-            onPress={() => setIsPlayingMusic(!isPlayingMusic)}
+            onPress={() => setIsMuted((m) => !m)}
+            accessibilityLabel={isMuted ? "Unmute ambient sound" : "Mute ambient sound"}
           >
             <Ionicons
-              name={isPlayingMusic ? "volume-high" : "volume-mute"}
+              name={isMuted ? "volume-mute" : "volume-high"}
               size={24}
-              color={isPlayingMusic ? "#3B6B6E" : "#999999"}
+              color={isMuted ? "#999999" : "#3B6B6E"}
             />
           </TouchableOpacity>
         </View>

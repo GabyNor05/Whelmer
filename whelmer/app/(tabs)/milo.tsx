@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Alert,
   Share,
+  Modal,
+  ScrollView,
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +20,9 @@ import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { askMilo } from '../../src/services/ai';
+import type { ChatTurn } from '../../src/services/ai';
+import { normalizeMiloText } from '../../src/utils/miloText';
+import { updateUserProfile } from '../../src/services/userService';
 import { useTasks } from '../../src/hooks/useTasks';
 import { FormattedMiloText } from '../../src/components/MiloMarkdown';
 import { useAuth } from '../../src/context/AuthContext';
@@ -35,7 +40,22 @@ interface Message {
 export default function MiloChatScreen() {
   const insets = useSafeAreaInsets();
   const { saveMiloResponse } = useTasks();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
+
+  // "Milo can be wrong" notice: shown once per account until accepted, and on tap of the header note
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
+  const disclaimerChecked = useRef(false);
+  React.useEffect(() => {
+    if (disclaimerChecked.current || !profile) return;
+    disclaimerChecked.current = true;
+    if (!profile.aiDisclaimerAcceptedAt) setDisclaimerOpen(true);
+  }, [profile]);
+  const acceptDisclaimer = () => {
+    setDisclaimerOpen(false);
+    if (user && !profile?.aiDisclaimerAcceptedAt) {
+      updateUserProfile(user.uid, { aiDisclaimerAcceptedAt: Date.now() }).catch(() => {});
+    }
+  };
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -64,7 +84,11 @@ export default function MiloChatScreen() {
     setIsLoading(true);
 
     try {
-      const responseText = await askMilo(query, profile);
+      // Send recent conversation so Milo remembers context ("try again", "continue")
+      const history: ChatTurn[] = messages
+        .filter((m) => m.id !== '1')
+        .map((m) => ({ role: m.sender === 'milo' ? 'assistant' : 'user', content: m.text }));
+      const responseText = await askMilo(query, profile, history);
       const isActionable = /\d+\.\s/.test(responseText);
 
       const miloMessage: Message = {
@@ -83,14 +107,23 @@ export default function MiloChatScreen() {
   };
 
   const handleCopy = async (text: string) => {
-    await Clipboard.setStringAsync(text);
+    await Clipboard.setStringAsync(normalizeMiloText(text));
     Alert.alert('Copied!', 'Milo’s message has been copied to your clipboard.');
+  };
+
+  // Copy the whole conversation, e.g. to paste it into a note or a new chat
+  const handleCopyChat = async () => {
+    const transcript = messages
+      .map((m) => `${m.sender === 'milo' ? 'Milo' : 'Me'}: ${m.sender === 'milo' ? normalizeMiloText(m.text) : m.text}`)
+      .join('\n\n');
+    await Clipboard.setStringAsync(transcript);
+    Alert.alert('Chat copied', 'The whole conversation is on your clipboard.');
   };
 
   const handleShare = async (text: string) => {
     try {
       await Share.share({
-        message: text,
+        message: normalizeMiloText(text),
         title: 'Milo ADHD Support Step Breakdown',
       });
     } catch (error) {
@@ -130,7 +163,7 @@ export default function MiloChatScreen() {
           {isMilo ? (
             <FormattedMiloText text={item.text} />
           ) : (
-            <Text style={styles.userText}>{item.text}</Text>
+            <Text selectable style={styles.userText}>{item.text}</Text>
           )}
 
           {isMilo && (
@@ -178,10 +211,50 @@ export default function MiloChatScreen() {
           </View>
           <View>
             <Text style={styles.headerTitle}>Milo</Text>
-            <Text style={styles.headerSubtitle}>AI Companion</Text>
+            <TouchableOpacity onPress={() => setDisclaimerOpen(true)} accessibilityRole="button">
+              <Text style={styles.headerSubtitle}>AI Companion · can make mistakes ⓘ</Text>
+            </TouchableOpacity>
           </View>
         </View>
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          onPress={handleCopyChat}
+          accessibilityLabel="Copy whole chat"
+        >
+          <Ionicons name="copy-outline" size={20} color={Colors.textDark} />
+        </TouchableOpacity>
       </View>
+
+      {/* AI disclaimer */}
+      <Modal visible={disclaimerOpen} transparent animationType="fade" onRequestClose={acceptDisclaimer}>
+        <View style={styles.disclaimerOverlay}>
+          <View style={styles.disclaimerCard}>
+            <Image source={milo} style={{ width: 56, height: 56, borderRadius: 28, alignSelf: 'center' }} />
+            <Text style={styles.disclaimerTitle}>Before we chat</Text>
+            <ScrollView style={{ maxHeight: 320 }}>
+              <Text style={styles.disclaimerText}>
+                Milo is an AI coach, not a person, doctor or therapist. Milo can misunderstand you or get things wrong, so
+                treat every suggestion as a starting point you can change.
+              </Text>
+              <Text style={styles.disclaimerText}>
+                <Text style={{ fontWeight: '700' }}>Milo can't give medical advice.</Text> For anything about your health,
+                ADHD diagnosis or medication, please speak to a doctor, psychologist or other qualified professional.
+              </Text>
+              <Text style={styles.disclaimerText}>
+                <Text style={{ fontWeight: '700' }}>If you're in crisis or thinking about harming yourself,</Text> please
+                reach out now to someone you trust, call the SADAG Suicide Crisis Helpline on 0800 567 567, or dial 112 for
+                emergencies.
+              </Text>
+              <Text style={styles.disclaimerText}>
+                Your messages are sent to an AI service to create Milo's replies. Don't share passwords or ID numbers.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.disclaimerBtn} onPress={acceptDisclaimer}>
+              <Text style={styles.disclaimerBtnText}>I understand</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -258,7 +331,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  headerTitleContainer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerTitleContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.55)',
+  },
+  disclaimerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24 },
+  disclaimerCard: { backgroundColor: '#F3F5E9', borderRadius: 24, padding: 22, gap: 10 },
+  disclaimerTitle: { fontSize: 20, fontWeight: '700', color: Colors.textDark, textAlign: 'center' },
+  disclaimerText: { fontSize: 14, lineHeight: 21, color: '#2C3E35', marginBottom: 10 },
+  disclaimerBtn: {
+    backgroundColor: '#7EC2C6',
+    borderRadius: 14,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  disclaimerBtnText: { fontSize: 15, fontWeight: '700', color: '#1B3C3E' },
   headerAvatar: {
     width: 38,
     height: 38,

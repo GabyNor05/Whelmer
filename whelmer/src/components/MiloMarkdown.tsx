@@ -3,6 +3,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Colors } from '../constants/Colors';
+import { normalizeMiloText } from '../utils/miloText';
 
 // Renders the inline markdown Milo uses: **bold**, *italic* / _italic_, `code`
 const renderInline = (line: string, keyPrefix: string) => {
@@ -10,13 +11,13 @@ const renderInline = (line: string, keyPrefix: string) => {
   return tokens.map((tok, i) => {
     const key = `${keyPrefix}-${i}`;
     if (tok.startsWith('**') && tok.endsWith('**') && tok.length > 4) {
-      return <Text key={key} style={styles.boldText}>{tok.slice(2, -2)}</Text>;
+      return <Text selectable key={key} style={styles.boldText}>{tok.slice(2, -2)}</Text>;
     }
     if (tok.startsWith('`') && tok.endsWith('`') && tok.length > 2) {
-      return <Text key={key} style={styles.codeText}>{tok.slice(1, -1)}</Text>;
+      return <Text selectable key={key} style={styles.codeText}>{tok.slice(1, -1)}</Text>;
     }
     if ((tok.startsWith('*') && tok.endsWith('*')) || (tok.startsWith('_') && tok.endsWith('_'))) {
-      if (tok.length > 2) return <Text key={key} style={styles.italicText}>{tok.slice(1, -1)}</Text>;
+      if (tok.length > 2) return <Text selectable key={key} style={styles.italicText}>{tok.slice(1, -1)}</Text>;
     }
     // Strip any stray markdown symbols left over
     return tok.replace(/\*\*/g, '').replace(/`/g, '');
@@ -25,7 +26,8 @@ const renderInline = (line: string, keyPrefix: string) => {
 
 // Block-level markdown: headings, bullet and numbered lists, rules, paragraphs
 export const FormattedMiloText = ({ text }: { text: string }) => {
-  const lines = text.replace(/\r/g, '').split('\n');
+  // Clean up tables, <br> and emoji numbers before rendering
+  const lines = normalizeMiloText(text).split('\n');
 
   return (
     <View>
@@ -44,7 +46,7 @@ export const FormattedMiloText = ({ text }: { text: string }) => {
           const level = heading[1].length;
           const content = heading[2].replace(/#+\s*$/, '').replace(/\*\*/g, '');
           return (
-            <Text key={key} style={[styles.miloText, level <= 2 ? styles.mdH1 : styles.mdH3]}>
+            <Text selectable key={key} style={[styles.miloText, level <= 2 ? styles.mdH1 : styles.mdH3]}>
               {renderInline(content, key)}
             </Text>
           );
@@ -57,7 +59,7 @@ export const FormattedMiloText = ({ text }: { text: string }) => {
           return (
             <View key={key} style={[styles.mdListRow, { paddingLeft: indent * 14 }]}>
               <Text style={[styles.miloText, styles.mdMarker]}>•</Text>
-              <Text style={[styles.miloText, styles.mdListText]}>{renderInline(bullet[2], key)}</Text>
+              <Text selectable style={[styles.miloText, styles.mdListText]}>{renderInline(bullet[2], key)}</Text>
             </View>
           );
         }
@@ -69,7 +71,7 @@ export const FormattedMiloText = ({ text }: { text: string }) => {
           return (
             <View key={key} style={[styles.mdListRow, { paddingLeft: indent * 14 }]}>
               <Text style={[styles.miloText, styles.mdMarker, styles.boldText]}>{numbered[2]}.</Text>
-              <Text style={[styles.miloText, styles.mdListText]}>{renderInline(numbered[3], key)}</Text>
+              <Text selectable style={[styles.miloText, styles.mdListText]}>{renderInline(numbered[3], key)}</Text>
             </View>
           );
         }
@@ -78,14 +80,14 @@ export const FormattedMiloText = ({ text }: { text: string }) => {
         const quote = line.match(/^>\s?(.*)$/);
         if (quote) {
           return (
-            <Text key={key} style={[styles.miloText, styles.italicText]}>
+            <Text selectable key={key} style={[styles.miloText, styles.italicText]}>
               {renderInline(quote[1], key)}
             </Text>
           );
         }
 
         return (
-          <Text key={key} style={styles.miloText}>
+          <Text selectable key={key} style={styles.miloText}>
             {renderInline(line, key)}
           </Text>
         );

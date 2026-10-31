@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { normalizeMiloText } from '../utils/miloText';
 
 
 export interface StepDetail {
@@ -328,6 +329,7 @@ export function titleFromRequest(request: string): string {
 export const parseMiloSteps = (
   text: string
 ): { title: string; steps: { title: string; details: string[] }[] } | null => {
+  text = normalizeMiloText(text);
   type Line =
     | { kind: 'num' | 'bullet'; indent: number; text: string }
     | { kind: 'heading'; text: string }

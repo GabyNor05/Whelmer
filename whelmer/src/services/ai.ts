@@ -21,7 +21,31 @@ Speak in a warm, concise, and non-judgmental tone. Never sound pushy or overly c
 When asked to break down a task, break it into 3 to 5 bite-sized, low-friction micro-steps.
 Format breakdowns as a numbered list (1., 2., 3.). If a step needs smaller actions, put them as
 indented "-" bullets under that step, at most 3 per step. Keep step titles short.
+
+Formatting rules (the app renders simple Markdown only):
+- Never use tables, HTML tags (such as <br>), code blocks or emoji numbers like 1️⃣.
+- Use short paragraphs, **bold**, numbered lists and "-" bullets only.
+- Keep replies under about 220 words, and always finish your last sentence.
+
+If the user lists several projects or deadlines at once, do not plan everything in one reply.
+Give a one-line order of priority (most urgent first), then micro-steps for the most urgent
+project only, and offer to break down the next one when they're ready.
+
+Remember the earlier messages in this conversation. If the user says "try again", "continue"
+or "you stopped", carry on from your previous reply instead of starting over.
+
+Safety and honesty:
+- You are an AI coach, not a doctor, therapist or medical tool, and you can be wrong.
+- Never diagnose, and never give advice about medication, dosages or treatment. For anything
+  medical or about mental health treatment, gently suggest speaking to a doctor, psychologist
+  or other qualified professional.
+- If the user mentions wanting to harm themselves, suicide, or being in danger, respond with
+  care, encourage them to contact someone they trust right now and a professional helpline.
+  In South Africa this is the SADAG Suicide Crisis Helpline on 0800 567 567, or emergency
+  services on 112 from a cellphone. Do not continue with productivity advice in that reply.
 `;
+
+export type ChatTurn = { role: 'user' | 'assistant'; content: string };
 
 // ---------------------------------------------------------------------------
 // Personalisation from the user's onboarding choices (users/{uid})
@@ -118,25 +142,44 @@ async function getAvailableModel(): Promise<string> {
 
 export async function askMilo(
   userPrompt: string,
-  profile?: Partial<UserProfile> | null
+  profile?: Partial<UserProfile> | null,
+  history: ChatTurn[] = []
 ): Promise<string> {
   try {
     const activeModel = await getAvailableModel();
+    const base = [
+      { role: 'system' as const, content: MILO_SYSTEM_INSTRUCTION + buildPersonalContext(profile) },
+      // Recent conversation, so "try again" or "continue" makes sense to Milo
+      ...history.slice(-12),
+      { role: 'user' as const, content: userPrompt },
+    ];
 
     const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: MILO_SYSTEM_INSTRUCTION + buildPersonalContext(profile) },
-        { role: 'user', content: userPrompt },
-      ],
+      messages: base,
       model: activeModel,
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 1200,
     });
 
-    return (
-      completion.choices[0]?.message?.content ||
-      "I'm here with you. Let's take a quick breath and try that again."
-    );
+    let reply = completion.choices[0]?.message?.content?.trim() || '';
+
+    // If the reply hit the length limit, ask Milo once to finish it off
+    if (reply && completion.choices[0]?.finish_reason === 'length') {
+      const more = await groq.chat.completions.create({
+        messages: [
+          ...base,
+          { role: 'assistant', content: reply },
+          { role: 'user', content: 'Please finish that reply briefly, continuing exactly where you stopped.' },
+        ],
+        model: activeModel,
+        temperature: 0.5,
+        max_tokens: 600,
+      });
+      const rest = more.choices[0]?.message?.content?.trim();
+      if (rest) reply = `${reply} ${rest}`;
+    }
+
+    return reply || "I'm here with you. Let's take a quick breath and try that again.";
   } catch (error: any) {
     console.error('Error calling Groq API:', error);
     return "I couldn't connect right now, but take your time. Let's try again in a moment.";
