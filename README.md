@@ -281,10 +281,10 @@ eas build -p android --profile preview
 - [ ] Move Groq calls behind a Firebase Cloud Function so the key never ships in the app
 - [ ] Optional server push, off by default
 - [ ] Studio-recorded soundscapes to replace the generated ambient loops
-- [ ] A one-colour notification icon
+- [x] A one-colour notification icon
 - [ ] Save Milo chat history to Firestore
 - [ ] Automated tests for step parsing, reminder planning and CRUD
-- [ ] Shared theme tokens file for all colours
+- [x] Shared theme tokens file for all colours
 - [ ] Notebook / daily journal (backlog)
 
 ---
@@ -314,7 +314,7 @@ AI tools supported development but are credited as tools, not as contributors:
 - **Groq API & `groq-sdk`** — [console.groq.com/docs](https://console.groq.com/docs)
 - **Ambient soundscapes** — two streamed royalty-free tracks from [Pixabay](https://pixabay.com/music/), used under the Pixabay Content License; eight ambient loops generated for the project and bundled in `assets/audio`
 - **EAS Build** — [docs.expo.dev/build](https://docs.expo.dev/build/setup/)
-- **Logo & Milo illustrations** — Kaylin Oosterhuizen
+- **Logo & Milo illustrations** — Caylin Oosterhuizen
 - **Icons** — [`@expo/vector-icons`](https://icons.expo.fyi/)
 - **Libraries** — React Native Paper, react-native-markdown-display, react-native-gesture-handler
 - Thanks to my lecturers at **Open Window Institute** for their guidance and feedback.
@@ -325,4 +325,4 @@ AI tools supported development but are credited as tools, not as contributors:
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
-*Made with care by Gabrielle Norris · Open Window Institute · 2026*
+*Made with care by Gaby Norris · Open Window Institute · 2026*

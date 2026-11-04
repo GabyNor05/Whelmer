@@ -22,10 +22,10 @@ export const TRACK_LIST: SoundTrack[] = [
   },
   {
     id: 'lofi-2',
-    title: 'Gentle Rain & Keys',
-    artist: 'Cozy Corner',
-    category: 'Lofi',
-    source: require('../../assets/audio/rain-keys.mp3'),
+    title: 'Rain Sounds',
+    artist: 'Marlowe Music',
+    category: 'Nature',
+    source: require('../../assets/audio/rain-sounds.mp3'),
   },
   {
     id: 'lofi-3',
@@ -43,10 +43,10 @@ export const TRACK_LIST: SoundTrack[] = [
   },
   {
     id: 'nature-2',
-    title: 'Calm Ocean Waves',
-    artist: 'Seaside Sanctuary',
+    title: 'Ocean Vibes',
+    artist: 'ToiletPlungerStudios',
     category: 'Nature',
-    source: require('../../assets/audio/ocean-waves.mp3'),
+    source: require('../../assets/audio/ocean-vibes.mp3'),
   },
   {
     id: 'nature-3',
@@ -71,10 +71,10 @@ export const TRACK_LIST: SoundTrack[] = [
   },
   {
     id: 'ambient-2',
-    title: 'Deep Space Drone',
-    artist: 'Cosmic Drift',
-    category: 'Ambient',
-    source: require('../../assets/audio/space-drone.mp3'),
+    title: 'Chill Lofi',
+    artist: 'Zephira Music',
+    category: 'Lofi',
+    source: require('../../assets/audio/chill-lofi.mp3'),
   },
   {
     id: 'noise-1',
