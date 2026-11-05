@@ -1,19 +1,41 @@
 rules_version = '2';
 
 // Whelmer Firestore security rules.
-// Paste into Firebase Console > Firestore Database > Rules, then Publish.
+// Publish: Firebase Console > Firestore Database > Rules > paste this file > Publish.
+// Anything not matched below is denied by default.
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Signed in, and the {uid} in the path is your own account
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    // Profile + preferences (userService.ts)
+    // ---------------------------------------------------------------- Profile
+    // users/{uid}: nickname, onboarding choices, preferences (userService.ts)
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      function isValidProfile(data) {
+        return data.keys().hasOnly([
+            'uid', 'email', 'nickname', 'avatarUrl', 'peakFocusTime', 'defaultFocusDuration',
+            'primaryGoal', 'preferences', 'aiDisclaimerAcceptedAt'
+          ])
+          && (!('uid' in data) || data.uid == uid)
+          && (!('nickname' in data) || (data.nickname is string && data.nickname.size() <= 60))
+          && (!('defaultFocusDuration' in data) || (data.defaultFocusDuration is number
+                && data.defaultFocusDuration >= 1 && data.defaultFocusDuration <= 180))
+          && (!('peakFocusTime' in data)
+                || data.peakFocusTime in ['morning', 'afternoon', 'evening', 'night', 'random'])
+          && (!('primaryGoal' in data) || data.primaryGoal in ['breakdown', 'focus', 'routines'])
+          && (!('preferences' in data) || (data.preferences is map
+                && data.preferences.keys().hasOnly(['pushNotifications', 'autoPlay', 'haptics'])))
+          && (!('aiDisclaimerAcceptedAt' in data) || data.aiDisclaimerAcceptedAt is number);
+      }
 
-      // Tasks with embedded micro-steps (taskService.ts)
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidProfile(request.resource.data);
+
+      // ---------------------------------------------------------- Tasks
+      // Tasks with embedded steps, deadline and Milo's plan (taskService.ts)
       match /tasks/{taskId} {
         function isValidTask(data) {
           return data.keys().hasOnly(['parentTitle', 'completed', 'createdAt', 'subSteps', 'deadline', 'miloPlan'])
@@ -33,7 +55,20 @@ service cloud.firestore {
         allow create, update: if isOwner(uid) && isValidTask(request.resource.data);
       }
 
-      // Reserved for chat history (users/{uid}/chats) if added later
+      // ---------------------------------------------------------- Notebook (coming next)
+      // users/{uid}/notes/{noteId}: only your own notes, text capped at 5,000 characters
+      match /notes/{noteId} {
+        function isValidNote(data) {
+          return (!('content' in data) || (data.content is string && data.content.size() <= 5000))
+            && (!('title' in data) || (data.title is string && data.title.size() <= 120))
+            && (!('taskIds' in data) || (data.taskIds is list && data.taskIds.size() <= 20));
+        }
+
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && isValidNote(request.resource.data);
+      }
+
+      // ---------------------------------------------------------- Chat history (reserved)
       match /chats/{chatId} {
         allow read, write: if isOwner(uid);
       }
