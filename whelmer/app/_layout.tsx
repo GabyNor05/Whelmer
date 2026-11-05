@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { LogBox } from 'react-native';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
+import { FocusSessionProvider } from '../src/context/FocusSessionContext';
 import { useNotifications } from '../src/hooks/useNotifications';
 
 SplashScreen.preventAutoHideAsync();
@@ -56,7 +57,9 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootNavigator />
+      <FocusSessionProvider>
+        <RootNavigator />
+      </FocusSessionProvider>
     </AuthProvider>
   );
 }

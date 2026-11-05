@@ -27,7 +27,7 @@ export const createUserProfile = async (
     primaryGoal: 'focus',
     preferences: {
       pushNotifications: true,
-      autoPlay: false,
+      autoPlay: true,
       haptics: true,
     },
   };

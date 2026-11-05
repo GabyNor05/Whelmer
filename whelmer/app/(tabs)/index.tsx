@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
 import { useTasks } from '../../src/hooks/useTasks';
 import { useAuth } from '../../src/context/AuthContext';
+import { miloCheckInPrompt } from '../../src/utils/miloPrompts';
+import FocusMiniPlayer from '../../src/components/FocusMiniPlayer';
 const milo = require('../../assets/milo/Milo-Inquisitive.png');
 
 export default function HomeScreen() {
@@ -23,16 +25,6 @@ export default function HomeScreen() {
   // Task & Timer State
   const { tasks, toggleTaskCompleted } = useTasks();
   const { profile } = useAuth();
-  const defaultMinutes = profile?.defaultFocusDuration ?? 25;
-  const [timerMinutes, setTimerMinutes] = useState(defaultMinutes);
-
-  // Use the focus length chosen in onboarding/Settings until the user adjusts it here
-  const hasAdjustedTimer = useRef(false);
-  useEffect(() => {
-    if (!hasAdjustedTimer.current) setTimerMinutes(defaultMinutes);
-  }, [defaultMinutes]);
-  const [selectedTrack, setSelectedTrack] = useState('Lofi Track 1');
-
   const pendingTasks = tasks.filter((t) => !t.completed);
 
   const toggleTask = (id: string) => {
@@ -40,10 +32,6 @@ export default function HomeScreen() {
     if (target) toggleTaskCompleted(target);
   };
 
-  const adjustTimer = (delta: number) => {
-    hasAdjustedTimer.current = true;
-    setTimerMinutes((prev) => Math.max(5, Math.min(60, prev + delta)));
-  };
 
   return (
     <View style={styles.screen}>
@@ -75,7 +63,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.checkInRight}>
             <Text style={styles.checkInQuote}>
-              “Feeling stuck today? Let's check in.”
+              “{miloCheckInPrompt()}”
             </Text>
             <TouchableOpacity
               style={styles.talkBtn}
@@ -86,47 +74,9 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* 3. Focus Sessions Widget */}
+        {/* 3. Focus Sessions: mini player (shares its session with the Focus Zone) */}
         <Text style={styles.sectionTitle}>Focus Sessions</Text>
-        <View style={styles.focusCard}>
-          <Text style={styles.timerDisplay}>{timerMinutes} : 00</Text>
-
-          <View style={styles.trackRow}>
-            <Text style={styles.trackLabel}>Will play...</Text>
-            <View style={styles.trackBadge}>
-              <View style={styles.trackDot} />
-              <Text style={styles.trackText}>{selectedTrack}</Text>
-            </View>
-          </View>
-
-          <View style={styles.timerControlsRow}>
-            <TouchableOpacity
-              style={styles.timeAdjBtn}
-              onPress={() => adjustTimer(-5)}
-            >
-              <Text style={styles.timeAdjText}>- 5 mins</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.startSessionBtn}
-              onPress={() =>
-                router.push({
-                  pathname: '/(tabs)/focus',
-                  params: { minutes: String(timerMinutes), start: String(Date.now()) },
-                })
-              }
-            >
-              <Text style={styles.startSessionText}>Start Quick Session</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.timeAdjBtn}
-              onPress={() => adjustTimer(5)}
-            >
-              <Text style={styles.timeAdjText}>+ 5 mins</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <FocusMiniPlayer />
 
         {/* 4. Your Tasks Section */}
         <View style={styles.tasksHeaderRow}>

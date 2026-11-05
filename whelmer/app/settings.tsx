@@ -25,6 +25,7 @@ import {
   updateUserProfile,
 } from '../src/services/userService';
 import { notificationsSupported, requestNotificationPermission } from '../src/services/notificationService';
+import { confirmBuzz } from '../src/utils/haptics';
 import type { User as UserProfile, UserPreferences } from '../src/types/user';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -126,7 +127,7 @@ export default function SettingsScreen() {
 
   // Settings toggles live in Firestore at users/{uid}.preferences
   const pushNotifications = profile?.preferences?.pushNotifications ?? true;
-  const focusAudioAutoplay = profile?.preferences?.autoPlay ?? false;
+  const focusAudioAutoplay = profile?.preferences?.autoPlay ?? true;
   const hapticFeedback = profile?.preferences?.haptics ?? true;
 
   // Modal Visibility States
@@ -204,7 +205,11 @@ export default function SettingsScreen() {
     }
   };
   const handleToggleAutoplay = (val: boolean) => savePreference('autoPlay', val);
-  const handleToggleHaptics = (val: boolean) => savePreference('haptics', val);
+  const handleToggleHaptics = (val: boolean) => {
+    // A quick buzz confirms vibration works on this phone
+    if (val) confirmBuzz();
+    savePreference('haptics', val);
+  };
 
   // Focus profile from onboarding, tap a row to cycle to the next option
   const cycle = <T,>(options: readonly T[], current: T | undefined): T => {
@@ -454,7 +459,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.settingTextGroup}>
               <Text style={styles.settingTitle}>Auto-play Ambient Audio</Text>
-              <Text style={styles.settingSubtitle}>Start sound when Focus timer begins</Text>
+              <Text style={styles.settingSubtitle}>Play your ambient sound when a session starts</Text>
             </View>
             <Switch
               value={focusAudioAutoplay}
@@ -470,7 +475,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.settingTextGroup}>
               <Text style={styles.settingTitle}>Haptic Feedback</Text>
-              <Text style={styles.settingSubtitle}>Vibrate on task completed & timer ticks</Text>
+              <Text style={styles.settingSubtitle}>Vibrate when a task or focus session is finished</Text>
             </View>
             <Switch
               value={hapticFeedback}

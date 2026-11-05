@@ -6,85 +6,31 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Modal,
-  FlatList,
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams } from "expo-router";
-import { useAuth } from "../../src/context/AuthContext";
-import { celebrate } from "../../src/utils/haptics";
-import { cancelNotification, scheduleSessionDone } from "../../src/services/notificationService";
-import { useAudioPlayer } from "expo-audio";
-import { TRACK_LIST, SoundTrack } from "../../src/services/trackService";
+import { formatClock, useFocusSession } from "../../src/context/FocusSessionContext";
+import TrackPicker from "../../src/components/TrackPicker";
 const milo = require('../../assets/milo/Milo-Pleased.png');
 
 export default function FocusScreen() {
   const insets = useSafeAreaInsets();
 
-  // Timer & State Management
-  const { profile } = useAuth();
-  const defaultMinutes = profile?.defaultFocusDuration ?? 25;
-  const hapticsOn = profile?.preferences?.haptics ?? true;
-  const notifyOn = profile?.preferences?.pushNotifications ?? false;
-  const params = useLocalSearchParams<{ minutes?: string; start?: string }>();
-
-  const [timeLeft, setTimeLeft] = useState(defaultMinutes * 60);
-  const [isRunning, setIsRunning] = useState(false);
-
-  // Follow the user's default focus length until they adjust the timer
-  const hasAdjustedTimer = useRef(false);
-  useEffect(() => {
-    if (!hasAdjustedTimer.current && !isRunning) setTimeLeft(defaultMinutes * 60);
-  }, [defaultMinutes]);
-
-  // "Start Quick Session" on Home sends its minutes here and starts straight away
-  useEffect(() => {
-    const minutes = Number(params.minutes);
-    if (!params.start || !(minutes > 0)) return;
-    hasAdjustedTimer.current = true;
-    setTimeLeft(minutes * 60);
-    setIsRunning(true);
-    setIsPlayingMusic(true);
-  }, [params.start]);
-  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
-  // Mute is separate from play/pause: the timer and record keep going, the sound goes silent
-  const [isMuted, setIsMuted] = useState(false);
-  const [selectedTrack, setSelectedTrack] = useState<SoundTrack>(TRACK_LIST[0]);
+  // One shared session with the Home mini player (src/context/FocusSessionContext.tsx)
+  const session = useFocusSession();
+  const { track: selectedTrack, timeLeft, isRunning, soundOn } = session;
   const [isPickerVisible, setIsPickerVisible] = useState(false);
-
-  // Audio player hook from expo-audio
-  const player = useAudioPlayer(selectedTrack.source);
 
   // Animation Refs
   const spinValue = useRef(new Animated.Value(0)).current;
   const tonearmAngle = useRef(new Animated.Value(0)).current;
 
-  // Handle Audio Play / Pause
-  useEffect(() => {
-    if (!player) return;
-
-    if (isRunning || isPlayingMusic) {
-      player.loop = true;
-      player.play();
-    } else {
-      player.pause();
-    }
-  }, [isRunning, isPlayingMusic, player]);
-
-  // Apply mute to the current player (and to a new one when the track changes)
-  useEffect(() => {
-    if (!player) return;
-    player.muted = isMuted;
-    player.volume = isMuted ? 0 : 1;
-  }, [isMuted, player]);
-
-  // Handle Record & Tonearm Animations
+  // Record spins and the tonearm swings on while a session runs
   useEffect(() => {
     let spinAnimation: Animated.CompositeAnimation;
 
-    if (isRunning || isPlayingMusic) {
+    if (isRunning) {
       spinValue.setValue(0);
       spinAnimation = Animated.loop(
         Animated.timing(spinValue, {
@@ -111,55 +57,7 @@ export default function FocusScreen() {
     }
 
     return () => spinAnimation?.stop();
-  }, [isRunning, isPlayingMusic]);
-
-  // Countdown Interval
-  useEffect(() => {
-    let timer: ReturnType<typeof setInterval>;
-    if (isRunning && timeLeft > 0) {
-      timer = setInterval(() => {
-        // Count down from a fixed end time, so the timer stays right even if the phone sleeps
-        setTimeLeft((prev) =>
-          endAtRef.current ? Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000)) : prev - 1
-        );
-      }, 1000);
-    } else if (timeLeft === 0) {
-      // Session finished while the app is open: happy buzz (if Haptic Feedback is on)
-      if (isRunning) celebrate(hapticsOn);
-      setIsRunning(false);
-      setIsPlayingMusic(false);
-    }
-    return () => clearInterval(timer);
-  }, [isRunning, timeLeft]);
-
-  // "Session complete" notification for when the phone is locked or the app is in the background.
-  // Re-scheduled whenever the timer starts, pauses, or the time is adjusted while running.
-  const timeLeftRef = useRef(timeLeft);
-  timeLeftRef.current = timeLeft;
-  const [adjustCount, setAdjustCount] = useState(0);
-  const endAtRef = useRef<number | null>(null);
-  useEffect(() => {
-    endAtRef.current = isRunning ? Date.now() + timeLeftRef.current * 1000 : null;
-  }, [isRunning, adjustCount]);
-  useEffect(() => {
-    if (!isRunning || !notifyOn) return;
-    let id: string | null = null;
-    let cancelled = false;
-    scheduleSessionDone(timeLeftRef.current).then((scheduled) => {
-      if (cancelled) cancelNotification(scheduled);
-      else id = scheduled;
-    });
-    return () => {
-      cancelled = true;
-      cancelNotification(id);
-    };
-  }, [isRunning, adjustCount, notifyOn]);
-
-  // Track Selector Switch
-  const handleSelectTrack = (track: SoundTrack) => {
-    setSelectedTrack(track);
-    setIsPickerVisible(false);
-  };
+  }, [isRunning]);
 
   const spin = spinValue.interpolate({
     inputRange: [0, 1],
@@ -171,11 +69,7 @@ export default function FocusScreen() {
     outputRange: ["-25deg", "0deg"],
   });
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+  const formatTime = formatClock;
 
   return (
     <View style={styles.screen}>
@@ -219,7 +113,13 @@ export default function FocusScreen() {
         <View style={styles.timerContainer}>
           <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
           <Text style={styles.timerStatus}>
-            {isRunning ? "FOCUS SESSION IN PROGRESS" : "READY TO FOCUS"}
+            {isRunning
+              ? "FOCUS SESSION IN PROGRESS"
+              : session.isActive
+              ? "PAUSED"
+              : session.justFinished
+              ? "SESSION COMPLETE · WELL DONE"
+              : "READY TO FOCUS"}
           </Text>
         </View>
 
@@ -227,21 +127,13 @@ export default function FocusScreen() {
         <View style={styles.adjustRow}>
           <TouchableOpacity
             style={styles.adjustPill}
-            onPress={() => {
-              hasAdjustedTimer.current = true;
-              setTimeLeft((t) => Math.max(0, t - 300));
-              setAdjustCount((n) => n + 1);
-            }}
+            onPress={() => session.adjust(-5)}
           >
             <Text style={styles.adjustText}>-5 Min</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.adjustPill}
-            onPress={() => {
-              hasAdjustedTimer.current = true;
-              setTimeLeft((t) => t + 300);
-              setAdjustCount((n) => n + 1);
-            }}
+            onPress={() => session.adjust(5)}
           >
             <Text style={styles.adjustText}>+5 Min</Text>
           </TouchableOpacity>
@@ -251,22 +143,16 @@ export default function FocusScreen() {
         <View style={styles.mainControlsRow}>
           <TouchableOpacity
             style={styles.iconBtnSecondary}
-            onPress={() => {
-              setIsRunning(false);
-              setIsPlayingMusic(false);
-              hasAdjustedTimer.current = false;
-              setTimeLeft(defaultMinutes * 60);
-            }}
+            onPress={session.reset}
+            accessibilityLabel="Reset timer"
           >
             <Ionicons name="refresh" size={24} color="#3B6B6E" />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.playPauseBtn}
-            onPress={() => {
-              setIsRunning(!isRunning);
-              setIsPlayingMusic(!isRunning);
-            }}
+            onPress={session.toggle}
+            accessibilityLabel={isRunning ? "Pause session" : "Start session"}
           >
             <Ionicons
               name={isRunning ? "pause" : "play"}
@@ -277,13 +163,13 @@ export default function FocusScreen() {
 
           <TouchableOpacity
             style={styles.iconBtnSecondary}
-            onPress={() => setIsMuted((m) => !m)}
-            accessibilityLabel={isMuted ? "Unmute ambient sound" : "Mute ambient sound"}
+            onPress={session.toggleSound}
+            accessibilityLabel={soundOn ? "Turn sound off" : "Turn sound on"}
           >
             <Ionicons
-              name={isMuted ? "volume-mute" : "volume-high"}
+              name={soundOn ? "volume-high" : "volume-mute"}
               size={24}
-              color={isMuted ? "#999999" : "#3B6B6E"}
+              color={soundOn ? "#3B6B6E" : "#8A938F"}
             />
           </TouchableOpacity>
         </View>
@@ -305,48 +191,13 @@ export default function FocusScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Track Selection Sheet Modal */}
-      <Modal visible={isPickerVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Ambient Sound</Text>
-              <TouchableOpacity onPress={() => setIsPickerVisible(false)}>
-                <Ionicons name="close" size={24} color="#1A1A1A" />
-              </TouchableOpacity>
-            </View>
-
-            <FlatList
-              data={TRACK_LIST || []}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const isSelected = item.id === selectedTrack.id;
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.trackOption,
-                      isSelected && styles.trackOptionSelected,
-                    ]}
-                    onPress={() => handleSelectTrack(item)}
-                  >
-                    <Ionicons
-                      name={isSelected ? "radio-button-on" : "radio-button-off"}
-                      size={20}
-                      color={isSelected ? "#7EC2C6" : "#999999"}
-                    />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.trackOptionTitle}>{item.title}</Text>
-                      <Text style={styles.trackOptionArtist}>
-                        {item.artist}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
+      {/* Track Selection Sheet */}
+      <TrackPicker
+        visible={isPickerVisible}
+        selectedId={selectedTrack.id}
+        onSelect={session.setTrack}
+        onClose={() => setIsPickerVisible(false)}
+      />
     </View>
   );
 }
